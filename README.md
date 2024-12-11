@@ -1,51 +1,36 @@
-# Crypto Project
+# CS458: Introduction to Cryptography
 
-## Overview
+This repo was created for the needs of the course "Introduction to Cryptography" at the Computer Science Department of the University of Crete.
 
-Cryptographic Inventory for searching weak cryptographic primitives
+## Contributors
 
-##  Features
+- CSD4676 Dimitrios Makrogiannis
+- CSD4337 Alexandros Markodimitrakis
+- CSD4531 Panagiwta Latsi
+- CSD4555 Maria Kakoulidou
 
-- **Crypto Inventory**: Check code for cryptographic weak primitives.
-- **GUI**: A user-friendly interface built with Tkinter.
-- **Database**: Store and manage data using MongoDB with the help of `pymongo`.
+## Project Description
 
-## Requirements
+This  project  focuses  on  building  a crypto  agility2frameworkdesigned  to facilitate  transition from  cryptographically  vulnerable  to  cryptographically  strong primitives3.  That  includes  the  transition of Post-Quantum  Cryptography4(PQC)algorithms into existing infrastructures.
 
-- Python 3.x
-- `cryptography` library
-- `tkinter` library
-- `pymongo` library
+## Project Model
 
-## Installation
+The following figure illustrates the model of the project.
+![Model](images/project_diagram.png)
 
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/yourusername/crypto_project.git
-    ```
-2. Navigate to the project directory:
-    ```sh
-    cd crypto_project
-    ```
-3. Install the required dependencies:
-    ```sh
-    pip install -r requirements.txt
-    ```
+## Project Implementation
 
-## Usage
+The project will be divided into the following parts:
+![Implementation](images/project_structure.png)
 
-python src/crypto.py
+- **Crypto Agility Framework**: CSD4531 Panagiwta Latsi, CSD4555 Maria Kakoulidou
+- **Cryptographic Inventory &Risk Assessment**: CSD4337 Alexandros Markodimitrakis
+- **Cryptographic Migration Plan**: CSD4531 Panagiwta Latsi, CSD4555 Maria Kakoulidou
+- **Simulator Development**: CSD4676 Dimitrios Makrogiannis
+
+## Project Structure
+ 
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for any changes.
-
-## Contact
-
-For any questions or suggestions, please contact [your_email@example.com](mailto:your_email@example.com).
-
-
+This project is licensed by us. We will find you if you use it without our permission.
