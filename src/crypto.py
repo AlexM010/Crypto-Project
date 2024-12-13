@@ -178,8 +178,100 @@ vulnerability_patterns = {
         },
         "severity": "Moderate",
         "explanation": "RSA without proper padding is vulnerable to padding oracle attacks, irrespective of key length."
+    },
+    "ECDH": {
+        "patterns": {
+            "Python": [
+                r"ECDH\(",  # Matches ECDH class initialization (example: PyCryptodome)
+                r"from\s+Crypto\.Protocol\.KDF\s+import\s+ECDH",  # Importing ECDH
+            ],
+            "C": [
+                r"EC_KEY_new_by_curve_name",  # Matches OpenSSL ECDH key generation
+                r"EC_POINT_mul",  # Matches ECDH shared secret computation
+            ],
+            "Java": [
+                r"KeyAgreement\.getInstance\(\"ECDH",  # Matches Java ECDH initialization
+                r"ECNamedCurveParameterSpec"  # Matches ECDH curve specification
+            ]
+        },
+        "severity": "Low",
+        "explanation": "ECDH is not quantum-safe as quantum computers can break its security using Shor's algorithm."
+    },
+        "MD5": {
+        "patterns": {
+            "Python": [
+                r"hashlib\.md5",  # Detects MD5 hash initialization
+                r"from\s+Crypto\.Hash\s+import\s+MD5",  # Detects MD5 import
+            ],
+            "C": [
+                r"MD5_Init",  # Matches OpenSSL MD5 initialization
+                r"MD5_Update",  # Matches OpenSSL MD5 update
+                r"MD5_Final",  # Matches OpenSSL MD5 finalization
+            ],
+            "Java": [
+                r"MessageDigest\.getInstance\(\"MD5\"",  # Matches Java MD5 initialization
+            ]
+        },
+        "severity": "Very High",
+        "explanation": "MD5 is broken due to collision vulnerabilities and is insecure under both classical and quantum attacks."
+    },
+    "SHA-1": {
+        "patterns": {
+            "Python": [
+                r"hashlib\.sha1",  # Detects SHA-1 hash initialization
+                r"from\s+Crypto\.Hash\s+import\s+SHA1",  # Detects SHA-1 import
+            ],
+            "C": [
+                r"SHA1_Init",  # Matches OpenSSL SHA-1 initialization
+                r"SHA1_Update",  # Matches OpenSSL SHA-1 update
+                r"SHA1_Final",  # Matches OpenSSL SHA-1 finalization
+            ],
+            "Java": [
+                r"MessageDigest\.getInstance\(\"SHA-1\"",  # Matches Java SHA-1 initialization
+            ]
+        },
+        "severity": "High",
+        "explanation": "SHA-1 is obsolete and vulnerable to collision attacks under classical and quantum contexts."
+    },
+    "SHA-256": {
+        "patterns": {
+            "Python": [
+                r"hashlib\.sha256",  # Detects SHA-256 hash initialization
+                r"from\s+Crypto\.Hash\s+import\s+SHA256",  # Detects SHA-256 import
+            ],
+            "C": [
+                r"SHA256_Init",  # Matches OpenSSL SHA-256 initialization
+                r"SHA256_Update",  # Matches OpenSSL SHA-256 update
+                r"SHA256_Final",  # Matches OpenSSL SHA-256 finalization
+            ],
+            "Java": [
+                r"MessageDigest\.getInstance\(\"SHA-256\"",  # Matches Java SHA-256 initialization
+            ]
+        },
+        "severity": "Very Low",
+        "explanation": "SHA-256 is secure under classical conditions, but Grover’s algorithm reduces its effective security to ~128 bits."
+    },
+    "ECB_Mode": {
+        "patterns": {
+            "Python": [
+                r"Cipher\.new\(\s*.*,\s*AES\.MODE_ECB",  # Matches AES in ECB mode
+                r"Cipher\.new\(\s*.*,\s*DES\.MODE_ECB",  # Matches DES in ECB mode
+            ],
+            "C": [
+                r"EVP_EncryptInit_ex\(.*,\s*EVP_aes_\d+_ecb",  # Matches OpenSSL AES ECB mode
+                r"EVP_EncryptInit_ex\(.*,\s*EVP_des_ecb",      # Matches OpenSSL DES ECB mode
+            ],
+            "Java": [
+                r"Cipher\.getInstance\(\"AES/ECB",  # Matches Java AES in ECB mode
+                r"Cipher\.getInstance\(\"DES/ECB",  # Matches Java DES in ECB mode
+            ]
+        },
+        "severity": "High",
+        "explanation": "Insecure mode; leaks patterns in plaintext due to lack of diffusion."
     }
+
 }
+
 def scan_for_vulnerability(file_path, patterns):
     """Check a single file for vulnerabilities."""
     findings = []
@@ -190,7 +282,11 @@ def scan_for_vulnerability(file_path, patterns):
                 for lang, lang_patterns in patterns.items():
                     for pattern in lang_patterns:
                         if re.search(pattern, line):
-                            findings.append({"language": lang, "line_number": i, "content": line.strip()})
+                            findings.append({
+                                "language": lang,
+                                "line_number": i,
+                                "content": line.strip()
+                            })
     except Exception as e:
         log_panel.insert(tk.END, f"[ERROR] Could not read file {file_path}: {e}\n")
         log_panel.see(tk.END)
@@ -209,6 +305,7 @@ def scan_vulnerabilities(folder):
     total_files = 0
     total_vulnerable_files = 0
     vulnerabilities = []
+    found_files = set()  # To avoid double-counting files with the same vulnerabilities
 
     for root, _, files in os.walk(folder):
         for file in files:
@@ -226,12 +323,19 @@ def scan_vulnerabilities(folder):
                 total_files += 1
                 file_path = os.path.join(root, file)
 
+                # Skip already found files
+                if file_path in found_files:
+                    continue
+
                 # Scan for each vulnerability
                 for vuln_name, vuln_details in vulnerability_patterns.items():
                     vuln_findings = scan_for_vulnerability(file_path, {lang: vuln_details["patterns"].get(lang, [])})
+                    
+                    # Ensure that the file is processed correctly
                     if vuln_findings:
                         vulnerable_counts[lang] += 1
                         total_vulnerable_files += 1
+                        found_files.add(file_path)
 
                         # Merge occurrences of the same vulnerability in the same file
                         merged_vulnerability = {
