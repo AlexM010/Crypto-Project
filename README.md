@@ -28,8 +28,13 @@ The project will be divided into the following parts:
 - **Cryptographic Migration Plan**: CSD4531 Panagiwta Latsi, CSD4555 Maria Kakoulidou
 - **Simulator Development**: CSD4676 Dimitrios Makrogiannis
 
-## Project Structure
- 
+## Project Guidelines
+
+You can find the project guidelines [here](docs/project_guidelines.pdf).
+
+## Project Report
+
+You can find the project report [here](docs/project_report.pdf).
 
 ## License
 
