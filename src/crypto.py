@@ -107,6 +107,24 @@ vulnerability_patterns = {
         "severity": "Very Low",
         "explanation": "AES-192 offers slightly better security than AES-128 but is still vulnerable to quantum attacks."
     },
+    "Blowfish_Short_Key": {
+        "patterns": {
+            "Python": [
+                r"Blowfish\.new\(.*key\s*=\s*['\"].{1,15}['\"]",  # Detects Blowfish with keys < 128 bits
+                r"from\s+Crypto\.Cipher\s+import\s+Blowfish"      # Detects Blowfish import
+            ],
+            "C": [
+                r"BF_set_key\(.*,\s*\d{1,2},",  # Detects Blowfish key setup with key length < 128 bits
+            ],
+            "Java": [
+                r"Cipher\.getInstance\(\"Blowfish",  # Matches Blowfish cipher initialization
+                r"SecretKeySpec\(.*,\s*\"Blowfish\""  # Detects key setup for Blowfish
+            ]
+        },
+        "severity": "High",
+        "explanation": "Short key sizes are inadequate for modern security standards."
+    },
+
     "RC4": {
         "patterns": {
             "Python": [
@@ -197,6 +215,38 @@ vulnerability_patterns = {
         "severity": "Low",
         "explanation": "ECDH is not quantum-safe as quantum computers can break its security using Shor's algorithm."
     },
+    "DH_KE_Weak_Parameters": {
+        "patterns": {
+            "Python": [
+                r"dh\.parameters_generate\(.*key_size\s*=\s*[0-9]{1,3}\)",  # Matches weak key sizes (e.g., < 2048 bits)
+            ],
+            "C": [
+                r"DH_generate_parameters_ex\(.*,\s*\d{1,4},",  # Matches DH generation with small modulus sizes
+            ],
+            "Java": [
+                r"KeyPairGenerator\.getInstance\(\"DH\"",  # Matches Java Diffie-Hellman initialization
+                r"keysize\s*=\s*\d{1,3}"  # Matches weak key sizes
+            ]
+        },
+        "severity": "High",
+        "explanation": "Small modulus sizes (e.g., < 2048 bits) or insecure generator values (e.g., 1, or p−1) make the system susceptible to attacks."
+    },
+    "DH_KE_Quantum_Threat": {
+        "patterns": {
+            "Python": [
+                r"dh\.parameters_generate\(.*\)",  # General Diffie-Hellman parameter generation
+            ],
+            "C": [
+                r"DH_generate_parameters_ex\(.*\)",  # General DH parameter generation
+            ],
+            "Java": [
+                r"KeyPairGenerator\.getInstance\(\"DH\"",  # General Diffie-Hellman initialization
+            ]
+        },
+        "severity": "Very High",
+        "explanation": "Diffie-Hellman is completely insecure against quantum computers; a transition to post-quantum cryptographic alternatives is necessary."
+    },
+
         "MD5": {
         "patterns": {
             "Python": [
@@ -251,6 +301,36 @@ vulnerability_patterns = {
         "severity": "Very Low",
         "explanation": "SHA-256 is secure under classical conditions, but Grover’s algorithm reduces its effective security to ~128 bits."
     },
+    "SHA-224": {
+        "patterns": {
+            "Python": [
+                r"hashlib\.sha224",  # Matches SHA-224 in Python
+            ],
+            "C": [
+                r"SHA224",  # Matches SHA-224 in C (using OpenSSL or similar)
+            ],
+            "Java": [
+                r"MessageDigest\.getInstance\(\"SHA-224\"",  # Matches SHA-224 initialization in Java
+            ]
+        },
+        "severity": "High",
+        "explanation": "Too small for modern security; effective security is reduced significantly."
+    },
+    "Whirlpool": {
+        "patterns": {
+            "Python": [
+                r"hashlib\.new\('whirlpool'\)",  # Matches Whirlpool hash in Python
+            ],
+            "C": [
+                r"whirlpool",  # Matches Whirlpool usage in C
+            ],
+            "Java": [
+                r"MessageDigest\.getInstance\(\"Whirlpool\"",  # Matches Whirlpool initialization in Java
+            ]
+        },
+        "severity": "Moderate",
+        "explanation": "Secure but uncommon; improper implementations can introduce vulnerabilities."
+    },
     "ECB_Mode": {
         "patterns": {
             "Python": [
@@ -268,7 +348,26 @@ vulnerability_patterns = {
         },
         "severity": "High",
         "explanation": "Insecure mode; leaks patterns in plaintext due to lack of diffusion."
+    },
+    "CBC_Static_IV": {
+        "patterns": {
+            "Python": [
+                r"Cipher\.new\(\s*.*,\s*AES\.MODE_CBC,\s*iv\s*=\s*['\"].{16}['\"]",  # Matches CBC mode with static IV (AES)
+                r"Cipher\.new\(\s*.*,\s*DES\.MODE_CBC,\s*iv\s*=\s*['\"].{8}['\"]",   # Matches CBC mode with static IV (DES)
+            ],
+            "C": [
+                r"EVP_EncryptInit_ex\(.*,\s*EVP_aes_\d+_cbc,\s*NULL,\s*\"[a-fA-F0-9]{32}\"",  # AES CBC with static IV in C (hex IV)
+                r"EVP_EncryptInit_ex\(.*,\s*EVP_des_cbc,\s*NULL,\s*\"[a-fA-F0-9]{16}\"",      # DES CBC with static IV in C (hex IV)
+            ],
+            "Java": [
+                r"Cipher\.getInstance\(\"AES/CBC",  # Matches AES CBC mode in Java
+                r"Cipher\.getInstance\(\"DES/CBC",  # Matches DES CBC mode in Java
+            ]
+        },
+        "severity": "High",
+        "explanation": "Predictable IVs make ciphertext vulnerable to chosen-plaintext attacks."
     }
+
 
 }
 
