@@ -387,6 +387,7 @@ def scan_for_vulnerability(file_path, patterns):
                         if re.search(pattern, line):
                             findings.append({
                                 "language": lang,
+                                "vulnerability": pattern,
                                 "line_number": i,
                                 "content": line.strip()
                             })
@@ -445,6 +446,7 @@ def scan_vulnerabilities(folder):
                             "language": lang,
                             "filename": file,
                             "path": file_path,
+                            "vulnerability": vuln_name,
                             "lines": [],
                             "severity": vuln_details["severity"],
                             "explanation": vuln_details["explanation"]
