@@ -15,16 +15,17 @@ vulnerability_patterns = {
     "DES": {
         "patterns": {
             "Python": [
-                r"DES\.new",              # Matches PyCryptodome usage
-                r"from\s+Crypto\.Cipher\s+import\s+DES"  # Importing DES
+                r"\bfrom\s+Crypto\.Cipher\s+import\s+DES\b",
+                r"\bDES\.new\s*\("
             ],
             "C": [
-                r"DES_ecb_encrypt",       # Matches OpenSSL DES usage
-                r"DES_set_key_checked"    # Matches OpenSSL key setup
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
+                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
+                r"\bDES_set_key_checked\b"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"DES",   # Matches Java DES cipher initialization
-                r"SecretKeySpec\(.*,\s*\"DES\""  # Matches DES key setup
+                r"\bCipher\.getInstance\(\s*\"DES",
+                r"\bSecretKeySpec\s*\(.*,\s*\"DES\""
             ]
         },
         "severity": "Very High",
@@ -33,13 +34,16 @@ vulnerability_patterns = {
     "3DES_1KEY": {
         "patterns": {
             "Python": [
-                r"DES3\.new\(.*,\s*\"DESede\"\)",  # Detects 3DES with 1 key
+                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
             ],
             "C": [
-                r"DES_set_key_unchecked\(.*,\s*&key_schedule\)",  # Detects 3DES with 1 key
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
+                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
+                r"\bDES_set_key_unchecked\s*\(.*,\s*&key_schedule\)",
+                r"\bDES_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule,\s*DES_ENCRYPT\)"
             ],
             "Java": [
-                r"SecretKeySpec\(.*,\s*\"DESede\"\)",  # Detects 3DES with 1 key
+                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\)"
             ]
         },
         "severity": "Very High",
@@ -48,13 +52,14 @@ vulnerability_patterns = {
     "3DES_2KEY": {
         "patterns": {
             "Python": [
-                r"DES3\.new\(.*,\s*\"DESede\"\)",  # Detects 3DES with 2 keys
+                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
             ],
             "C": [
-                r"DES_set_key_unchecked\(.*,\s*&key_schedule\)",  # Detects 3DES with 2 keys
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
+                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[0\],\s*DES_ENCRYPT\)"
             ],
             "Java": [
-                r"SecretKeySpec\(.*16,\s*\"DESede\"\)",  # Detects 3DES with 2 keys (128-bit key)
+                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}16"
             ]
         },
         "severity": "High",
@@ -63,13 +68,14 @@ vulnerability_patterns = {
     "3DES_3KEY": {
         "patterns": {
             "Python": [
-                r"DES3\.new\(.*,\s*\"DESede\"\)",  # Detects 3DES with 3 keys
+                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
             ],
             "C": [
-                r"DES_set_key_unchecked\(.*,\s*&key_schedule\)",  # Detects 3DES with 3 keys
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
+                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[2\],\s*DES_ENCRYPT\)"
             ],
             "Java": [
-                r"SecretKeySpec\(.*24,\s*\"DESede\"\)",  # Detects 3DES with 3 keys (192-bit key)
+                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}24"
             ]
         },
         "severity": "High",
@@ -78,298 +84,296 @@ vulnerability_patterns = {
     "AES-128": {
         "patterns": {
             "Python": [
-                r"AES\.new\((.*?)\)",  # Matches AES initialization
-                r"key\s*=\s*.{16}",   # Matches key length for AES-128 (16 bytes)
+                r"\bAES\.new\s*\(.*?\)",
+                r"\bkey\s*=\s*.{16}\b"
             ],
             "C": [
-                r"EVP_aes_128_[a-zA-Z0-9_]+",  # Matches OpenSSL AES-128 functions
+                r"\bEVP_aes_128_[a-zA-Z0-9_]+\b"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"AES/.*128",  # Matches Java AES-128
+                r"\bCipher\.getInstance\(\"AES/.*128"
             ]
         },
         "severity": "Low",
-        "explanation": "AES-128 is secure against classical attacks but not quantum-safe (vulnerable to Grover's algorithm)."
+        "explanation": "AES-128 is secure against classical attacks but not quantum-safe."
     },
     "AES-192": {
         "patterns": {
             "Python": [
-                r"AES\.new\((.*?)\)",  # Matches AES initialization
-                r"key\s*=\s*.{24}",   # Matches key length for AES-192 (24 bytes)
+                r"\bAES\.new\s*\(.*?\)",
+                r"\bkey\s*=\s*.{24}\b"
             ],
             "C": [
-                r"EVP_aes_192_[a-zA-Z0-9_]+",  # Matches OpenSSL AES-192 functions
+                r"\bEVP_aes_192_[a-zA-Z0-9_]+\b"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"AES/.*192",  # Matches Java AES-192
+                r"\bCipher\.getInstance\(\"AES/.*192"
             ]
         },
         "severity": "Very Low",
-        "explanation": "AES-192 offers slightly better security than AES-128 but is still vulnerable to quantum attacks."
+        "explanation": "AES-192 is slightly better than AES-128, but still vulnerable to quantum attacks."
     },
     "Blowfish_Short_Key": {
         "patterns": {
             "Python": [
-                r"Blowfish\.new\(.*key\s*=\s*['\"].{1,15}['\"]",  # Detects Blowfish with keys < 128 bits
-                r"from\s+Crypto\.Cipher\s+import\s+Blowfish"      # Detects Blowfish import
+                r"\bfrom\s+Crypto\.Cipher\s+import\s+Blowfish\b",
+                r"\bBlowfish\.new\s*\(.*key\s*=\s*['\"].{1,15}['\"]"
             ],
             "C": [
-                r"BF_set_key\(.*,\s*\d{1,2},",  # Detects Blowfish key setup with key length < 128 bits
+                r"\bBF_set_key\s*\(.*,\s*\d{1,2},"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"Blowfish",  # Matches Blowfish cipher initialization
-                r"SecretKeySpec\(.*,\s*\"Blowfish\""  # Detects key setup for Blowfish
+                r"\bCipher\.getInstance\(\"Blowfish",
+                r"\bSecretKeySpec\s*\(.*,\s*\"Blowfish\""
             ]
         },
         "severity": "High",
         "explanation": "Short key sizes are inadequate for modern security standards."
     },
-
     "RC4": {
         "patterns": {
             "Python": [
-                r"RC4",  # Matches usage of RC4 cipher
-                r"from\s+Crypto\.Cipher\s+import\s+RC4"  # Importing RC4
+                r"\bfrom\s+Crypto\.Cipher\s+import\s+RC4\b",
+                r"\bRC4\s*\("
             ],
             "C": [
-                r"RC4_encrypt",  # Matches RC4 encryption function
+                r"\bRC4_encrypt\b"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"RC4",  # Matches Java RC4 cipher initialization
+                r"\bCipher\.getInstance\(\"RC4"
             ]
         },
         "severity": "Very High",
-        "explanation": "RC4 is insecure due to biases in its keystream, vulnerabilities in its key scheduling algorithm, and susceptibility to attacks like plaintext recovery and state inference."
+        "explanation": "RC4 is insecure due to biases in its keystream and vulnerable to multiple attacks."
     },
     "RSA_512_1024": {
         "patterns": {
             "Python": [
-                r"RSA\.new_key\(512\)",  # Matches RSA 512-bit key generation in Python
-                r"RSA\.new_key\(1024\)"  # Matches RSA 1024-bit key generation in Python
+                r"\bRSA\.new_key\s*\(512\)",
+                r"\bRSA\.new_key\s*\(1024\)"
             ],
             "C": [
-                r"RSA_generate_key\(512\)",  # Matches RSA 512-bit key generation in C
-                r"RSA_generate_key\(1024\)"  # Matches RSA 1024-bit key generation in C
+                r"\bRSA_generate_key\s*\(512\)",
+                r"\bRSA_generate_key\s*\(1024\)"
             ],
             "Java": [
-                r"KeyPairGenerator\.getInstance\(\"RSA\"",  # Matches RSA key pair generation in Java
-                r"keysize\s*=\s*512",  # Detects key size of 512 bits
-                r"keysize\s*=\s*1024"  # Detects key size of 1024 bits
+                r"\bKeyPairGenerator\.getInstance\(\"RSA\"",
+                r"\bkeysize\s*=\s*512\b",
+                r"\bkeysize\s*=\s*1024\b"
             ]
         },
         "severity": "High",
-        "explanation": "RSA with short keys (512, 1024 bits) is easily breakable with classical attacks and completely broken with quantum computing (Shor's algorithm)."
+        "explanation": "RSA with short keys (512, 1024 bits) is easily breakable."
     },
     "RSA_2048_3072": {
         "patterns": {
             "Python": [
-                r"RSA\.new_key\(2048\)",  # Matches RSA 2048-bit key generation in Python
-                r"RSA\.new_key\(3072\)"   # Matches RSA 3072-bit key generation in Python
+                r"\bRSA\.new_key\s*\(2048\)",
+                r"\bRSA\.new_key\s*\(3072\)"
             ],
             "C": [
-                r"RSA_generate_key\(2048\)",  # Matches RSA 2048-bit key generation in C
-                r"RSA_generate_key\(3072\)"   # Matches RSA 3072-bit key generation in C
+                r"\bRSA_generate_key\s*\(2048\)",
+                r"\bRSA_generate_key\s*\(3072\)"
             ],
             "Java": [
-                r"KeyPairGenerator\.getInstance\(\"RSA\"",  # Matches RSA key pair generation in Java
-                r"keysize\s*=\s*2048",  # Detects key size of 2048 bits
-                r"keysize\s*=\s*3072"   # Detects key size of 3072 bits
+                r"\bKeyPairGenerator\.getInstance\(\"RSA\"",
+                r"\bkeysize\s*=\s*2048\b",
+                r"\bkeysize\s*=\s*3072\b"
             ]
         },
         "severity": "Very Low",
-        "explanation": "RSA with 2048, 3072+ bits is secure against classical attacks but vulnerable to quantum computing."
+        "explanation": "RSA with 2048 or 3072 bits is secure against classical attacks but not quantum-resistant."
     },
     "RSA_no_padding": {
         "patterns": {
             "Python": [
-                r"RSA\.encrypt\(.*,\s*None\)",  # Matches RSA encryption with no padding
-                r"RSA\.decrypt\(.*,\s*None\)"   # Matches RSA decryption with no padding
+                r"\bRSA\.encrypt\s*\(.*,\s*None\)",
+                r"\bRSA\.decrypt\s*\(.*,\s*None\)"
             ],
             "C": [
-                r"RSA_private_encrypt\(.*,\s*RSA_NO_PADDING\)",  # Matches RSA with no padding in C
-                r"RSA_public_encrypt\(.*,\s*RSA_NO_PADDING\)"    # Matches RSA with no padding in C
+                r"\bRSA_private_encrypt\s*\(.*,\s*RSA_NO_PADDING\)",
+                r"\bRSA_public_encrypt\s*\(.*,\s*RSA_NO_PADDING\)"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"RSA/None\"",  # Matches RSA with no padding in Java
-                r"RSAEncryptionPadding\.NoPadding"    # Detects RSA with no padding in Java
+                r"\bCipher\.getInstance\(\"RSA/None\"",
+                r"\bRSAEncryptionPadding\.NoPadding"
             ]
         },
         "severity": "Moderate",
-        "explanation": "RSA without proper padding is vulnerable to padding oracle attacks, irrespective of key length."
+        "explanation": "RSA without proper padding is vulnerable to padding oracle attacks."
     },
     "ECDH": {
         "patterns": {
             "Python": [
-                r"ECDH\(",  # Matches ECDH class initialization (example: PyCryptodome)
-                r"from\s+Crypto\.Protocol\.KDF\s+import\s+ECDH",  # Importing ECDH
+                r"\bfrom\s+Crypto\.Protocol\.KDF\s+import\s+ECDH\b",
+                r"\bECDH\s*\("
             ],
             "C": [
-                r"EC_KEY_new_by_curve_name",  # Matches OpenSSL ECDH key generation
-                r"EC_POINT_mul",  # Matches ECDH shared secret computation
+                r"\bEC_KEY_new_by_curve_name\b",
+                r"\bEC_POINT_mul\b"
             ],
             "Java": [
-                r"KeyAgreement\.getInstance\(\"ECDH",  # Matches Java ECDH initialization
-                r"ECNamedCurveParameterSpec"  # Matches ECDH curve specification
+                r"\bKeyAgreement\.getInstance\(\"ECDH\"",
+                r"\bECNamedCurveParameterSpec\b"
             ]
         },
         "severity": "Low",
-        "explanation": "ECDH is not quantum-safe as quantum computers can break its security using Shor's algorithm."
+        "explanation": "ECDH is not quantum-safe; quantum computers can break its security."
     },
     "DH_KE_Weak_Parameters": {
         "patterns": {
             "Python": [
-                r"dh\.parameters_generate\(.*key_size\s*=\s*[0-9]{1,3}\)",  # Matches weak key sizes (e.g., < 2048 bits)
+                r"\bdh\.parameters_generate\s*\(.*key_size\s*=\s*[0-9]{1,3}\)"
             ],
             "C": [
-                r"DH_generate_parameters_ex\(.*,\s*\d{1,4},",  # Matches DH generation with small modulus sizes
+                r"\bDH_generate_parameters_ex\s*\(.*,\s*\d{1,4},"
             ],
             "Java": [
-                r"KeyPairGenerator\.getInstance\(\"DH\"",  # Matches Java Diffie-Hellman initialization
-                r"keysize\s*=\s*\d{1,3}"  # Matches weak key sizes
+                r"\bKeyPairGenerator\.getInstance\(\"DH\"",
+                r"\bkeysize\s*=\s*\d{1,3}\b"
             ]
         },
         "severity": "High",
-        "explanation": "Small modulus sizes (e.g., < 2048 bits) or insecure generator values (e.g., 1, or p−1) make the system susceptible to attacks."
+        "explanation": "Small modulus sizes (<2048 bits) in DH are easily attacked."
     },
     "DH_KE_Quantum_Threat": {
         "patterns": {
             "Python": [
-                r"dh\.parameters_generate\(.*\)",  # General Diffie-Hellman parameter generation
+                r"\bdh\.parameters_generate\s*\(.*\)"
             ],
             "C": [
-                r"DH_generate_parameters_ex\(.*\)",  # General DH parameter generation
+                r"\bDH_generate_parameters_ex\s*\(.*\)"
             ],
             "Java": [
-                r"KeyPairGenerator\.getInstance\(\"DH\"",  # General Diffie-Hellman initialization
+                r"\bKeyPairGenerator\.getInstance\(\"DH\""
             ]
         },
         "severity": "Very High",
-        "explanation": "Diffie-Hellman is completely insecure against quantum computers; a transition to post-quantum cryptographic alternatives is necessary."
+        "explanation": "DH is not secure against quantum computers."
     },
-
-        "MD5": {
+    "MD5": {
         "patterns": {
             "Python": [
-                r"hashlib\.md5",  # Detects MD5 hash initialization
-                r"from\s+Crypto\.Hash\s+import\s+MD5",  # Detects MD5 import
+                r"\bhashlib\.md5\b",
+                r"\bfrom\s+Crypto\.Hash\s+import\s+MD5\b"
             ],
             "C": [
-                r"MD5_Init",  # Matches OpenSSL MD5 initialization
-                r"MD5_Update",  # Matches OpenSSL MD5 update
-                r"MD5_Final",  # Matches OpenSSL MD5 finalization
+                r"\bMD5_Init\b",
+                r"\bMD5_Update\b",
+                r"\bMD5_Final\b"
             ],
             "Java": [
-                r"MessageDigest\.getInstance\(\"MD5\"",  # Matches Java MD5 initialization
+                r"\bMessageDigest\.getInstance\(\"MD5\""
             ]
         },
         "severity": "Very High",
-        "explanation": "MD5 is broken due to collision vulnerabilities and is insecure under both classical and quantum attacks."
+        "explanation": "MD5 is broken due to collision vulnerabilities."
     },
     "SHA-1": {
         "patterns": {
             "Python": [
-                r"hashlib\.sha1",  # Detects SHA-1 hash initialization
-                r"from\s+Crypto\.Hash\s+import\s+SHA1",  # Detects SHA-1 import
+                r"\bhashlib\.sha1\b",
+                r"\bfrom\s+Crypto\.Hash\s+import\s+SHA1\b"
             ],
             "C": [
-                r"SHA1_Init",  # Matches OpenSSL SHA-1 initialization
-                r"SHA1_Update",  # Matches OpenSSL SHA-1 update
-                r"SHA1_Final",  # Matches OpenSSL SHA-1 finalization
+                r"\bSHA1_Init\b",
+                r"\bSHA1_Update\b",
+                r"\bSHA1_Final\b"
             ],
             "Java": [
-                r"MessageDigest\.getInstance\(\"SHA-1\"",  # Matches Java SHA-1 initialization
+                r"\bMessageDigest\.getInstance\(\"SHA-1\""
             ]
         },
         "severity": "High",
-        "explanation": "SHA-1 is obsolete and vulnerable to collision attacks under classical and quantum contexts."
+        "explanation": "SHA-1 is obsolete and vulnerable to collisions."
     },
     "SHA-256": {
         "patterns": {
             "Python": [
-                r"hashlib\.sha256",  # Detects SHA-256 hash initialization
-                r"from\s+Crypto\.Hash\s+import\s+SHA256",  # Detects SHA-256 import
+                r"\bhashlib\.sha256\b",
+                r"\bfrom\s+Crypto\.Hash\s+import\s+SHA256\b"
             ],
             "C": [
-                r"SHA256_Init",  # Matches OpenSSL SHA-256 initialization
-                r"SHA256_Update",  # Matches OpenSSL SHA-256 update
-                r"SHA256_Final",  # Matches OpenSSL SHA-256 finalization
+                r"\bSHA256_Init\b",
+                r"\bSHA256_Update\b",
+                r"\bSHA256_Final\b"
             ],
             "Java": [
-                r"MessageDigest\.getInstance\(\"SHA-256\"",  # Matches Java SHA-256 initialization
+                r"\bMessageDigest\.getInstance\(\"SHA-256\""
             ]
         },
         "severity": "Very Low",
-        "explanation": "SHA-256 is secure under classical conditions, but Grover’s algorithm reduces its effective security to ~128 bits."
+        "explanation": "SHA-256 is secure classically, but less so under quantum threats."
     },
     "SHA-224": {
         "patterns": {
             "Python": [
-                r"hashlib\.sha224",  # Matches SHA-224 in Python
+                r"\bhashlib\.sha224\b"
             ],
             "C": [
-                r"SHA224",  # Matches SHA-224 in C (using OpenSSL or similar)
+                r"\bSHA224\b"
             ],
             "Java": [
-                r"MessageDigest\.getInstance\(\"SHA-224\"",  # Matches SHA-224 initialization in Java
+                r"\bMessageDigest\.getInstance\(\"SHA-224\""
             ]
         },
         "severity": "High",
-        "explanation": "Too small for modern security; effective security is reduced significantly."
+        "explanation": "SHA-224 provides reduced security compared to larger variants."
     },
     "Whirlpool": {
         "patterns": {
             "Python": [
-                r"hashlib\.new\('whirlpool'\)",  # Matches Whirlpool hash in Python
+                r"\bhashlib\.new\s*\(\s*'whirlpool'\)"
             ],
             "C": [
-                r"whirlpool",  # Matches Whirlpool usage in C
+                r"\bwhirlpool\b"
             ],
             "Java": [
-                r"MessageDigest\.getInstance\(\"Whirlpool\"",  # Matches Whirlpool initialization in Java
+                r"\bMessageDigest\.getInstance\(\"Whirlpool\""
             ]
         },
         "severity": "Moderate",
-        "explanation": "Secure but uncommon; improper implementations can introduce vulnerabilities."
+        "explanation": "Whirlpool is secure but less commonly used; implementation quality may vary."
     },
     "ECB_Mode": {
         "patterns": {
             "Python": [
-                r"Cipher\.new\(\s*.*,\s*AES\.MODE_ECB",  # Matches AES in ECB mode
-                r"Cipher\.new\(\s*.*,\s*DES\.MODE_ECB",  # Matches DES in ECB mode
+                r"\bCipher\.new\s*\(.*,\s*AES\.MODE_ECB",
+                r"\bCipher\.new\s*\(.*,\s*DES\.MODE_ECB"
             ],
             "C": [
-                r"EVP_EncryptInit_ex\(.*,\s*EVP_aes_\d+_ecb",  # Matches OpenSSL AES ECB mode
-                r"EVP_EncryptInit_ex\(.*,\s*EVP_des_ecb",      # Matches OpenSSL DES ECB mode
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_aes_\d+_ecb\b",
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ecb\b"
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"AES/ECB",  # Matches Java AES in ECB mode
-                r"Cipher\.getInstance\(\"DES/ECB",  # Matches Java DES in ECB mode
+                r"\bCipher\.getInstance\(\"AES/ECB",
+                r"\bCipher\.getInstance\(\"DES/ECB"
             ]
         },
         "severity": "High",
-        "explanation": "Insecure mode; leaks patterns in plaintext due to lack of diffusion."
+        "explanation": "ECB mode leaks plaintext patterns."
     },
     "CBC_Static_IV": {
         "patterns": {
             "Python": [
-                r"Cipher\.new\(\s*.*,\s*AES\.MODE_CBC,\s*iv\s*=\s*['\"].{16}['\"]",  # Matches CBC mode with static IV (AES)
-                r"Cipher\.new\(\s*.*,\s*DES\.MODE_CBC,\s*iv\s*=\s*['\"].{8}['\"]",   # Matches CBC mode with static IV (DES)
+                r"\bCipher\.new\s*\(.*,\s*AES\.MODE_CBC,\s*iv\s*=\s*['\"].{16}['\"]",
+                r"\bCipher\.new\s*\(.*,\s*DES\.MODE_CBC,\s*iv\s*=\s*['\"].{8}['\"]"
             ],
             "C": [
-                r"EVP_EncryptInit_ex\(.*,\s*EVP_aes_\d+_cbc,\s*NULL,\s*\"[a-fA-F0-9]{32}\"",  # AES CBC with static IV in C (hex IV)
-                r"EVP_EncryptInit_ex\(.*,\s*EVP_des_cbc,\s*NULL,\s*\"[a-fA-F0-9]{16}\"",      # DES CBC with static IV in C (hex IV)
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_aes_\d+_cbc,\s*NULL,\s*\"[a-fA-F0-9]{32}\"",
+                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_cbc,\s*NULL,\s*\"[a-fA-F0-9]{16}\""
             ],
             "Java": [
-                r"Cipher\.getInstance\(\"AES/CBC",  # Matches AES CBC mode in Java
-                r"Cipher\.getInstance\(\"DES/CBC",  # Matches DES CBC mode in Java
+                r"\bCipher\.getInstance\(\"AES/CBC",
+                r"\bCipher\.getInstance\(\"DES/CBC"
             ]
         },
         "severity": "High",
-        "explanation": "Predictable IVs make ciphertext vulnerable to chosen-plaintext attacks."
+        "explanation": "Static IVs in CBC mode weaken security and allow chosen-plaintext attacks."
     }
-
-
 }
+
+
 
 def scan_for_vulnerability(file_path, patterns):
     """Check a single file for vulnerabilities."""
