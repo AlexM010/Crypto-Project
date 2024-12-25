@@ -19,67 +19,85 @@ vulnerability_patterns = {
                 r"\bDES\.new\s*\("
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
-                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
-                r"\bDES_set_key_checked\b"
+                r"\bDES_set_key_checked\b",
+                r"\bDES_\w+_(?:en|de)crypt\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\s*\"DES",
-                r"\bSecretKeySpec\s*\(.*,\s*\"DES\""
+                # e.g. Cipher.getInstance("DES/ECB/PKCS5Padding")
+                r"\bCipher\.getInstance\(\s*\"DES(?!ede)(?:/[^\"/]*)*",
+                # e.g. new SecretKeySpec("12345678".getBytes(), "DES")
+                r"\bSecretKeySpec\s*\(\s*\"[^\"\r\n]*\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DES\""
             ]
         },
         "severity": "Very High",
-        "explanation": "DES is insecure due to its 56-bit key size, making it vulnerable to brute-force attacks."
+        "explanation": "DES is insecure (56-bit key), vulnerable to brute force."
     },
+
     "3DES_1KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Single line: DES3.new(...) with 8-byte block repeated thrice => 24 total
+                r"\bDES3\.new\s*\(\s*b?['\"](.{8})\1\1['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_set_key_unchecked\s*\(.*,\s*&key_schedule\)",
-                r"\bDES_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule,\s*DES_ENCRYPT\)"
+                # Single line: EVP_(Encrypt|Decrypt)Init_ex(..., "ABCDEFGHABCDEFGHABCDEFGH", ...)
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"(.{8})\1\1\",[^)]*\)"
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\)"
+                # (A) Cipher.getInstance("DESede/...") => detect 3DES usage
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) new SecretKeySpec("ABCDEFGHABCDEFGHABCDEFGH".getBytes(), "DESede") => single key repeated
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"(.{8})\1\1\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "Very High",
-        "explanation": "3DES with 1 key offers no additional security over DES and is insecure."
+        "explanation": "3DES with one repeated 8-byte block (24 total) is effectively single-DES security."
     },
+
     "3DES_2KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Traditional approach: 16 bytes => 2-key. But PyCryptodome typically expects 24 bytes.
+                # If you're specifically scanning for a '16-byte literal' approach, you can keep:
+                r"\bDES3\.new\s*\(\s*b?['\"][^'\"]{16}['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[0\],\s*DES_ENCRYPT\)"
+                # 16 bytes => 2-key (some OpenSSL usage). Actually still 24 bytes is typical, but we keep for reference.
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"[^\"\r\n]{16}\","
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}16"
+                # (A) Cipher.getInstance("DESede/..."):
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) 2-key in a 24-byte block => K1 != K2 => K1 => e.g. "12345678abcdefgh12345678"
+                # (8 bytes for K1), (8 bytes for K2 != K1), then (K1) again
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"(.{8})(?!\1)(.{8})\1\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "High",
-        "explanation": "3DES with 2 keys provides ~80 bits of security, which is inadequate by modern standards."
+        "explanation": "2-key 3DES in Java: 24 bytes but only 2 unique blocks (K1,K2,K1). ~112-bit security."
     },
+
     "3DES_3KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Single line: DES3.new(...) => 24 bytes, not repeated
+                r"\bDES3\.new\s*\(\s*b?['\"][^'\"]{24}['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[2\],\s*DES_ENCRYPT\)"
+                # 24-byte => 3-key. If you want negative lookahead to exclude repeated blocks, do:
+                # r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"(?!(.{8})\1\1)([^\"\r\n]{24})\","
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"[^\"\r\n]{24}\","
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}24"
+                # (A) Cipher.getInstance("DESede/...")
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) new SecretKeySpec(... 24 bytes ...), not repeated => negative lookahead if you want to exclude single-key
+                # e.g.   r"\bnew\s+SecretKeySpec\s*\(\s*\"(?!(.{8})\1\1)([^\"\r\n]{24})\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{24}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "High",
-        "explanation": "3DES with 3 keys provides ~112 bits of security, which is insufficient against quantum attacks."
+        "explanation": "3-key 3DES (~112-bit). Stronger than 1- or 2-key but still considered legacy."
     },
     "AES-128": {
         "patterns": {
