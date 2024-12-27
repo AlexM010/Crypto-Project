@@ -100,50 +100,59 @@ vulnerability_patterns = {
         "explanation": "3-key 3DES (~112-bit). Stronger than 1- or 2-key but still considered legacy."
     },
     "AES-128": {
-        "patterns": {
-            "Python": [
-                r"\bAES\.new\s*\(.*?\)",
-                r"\bkey\s*=\s*.{16}\b"
-            ],
-            "C": [
-                r"\bEVP_aes_128_[a-zA-Z0-9_]+\b"
-            ],
-            "Java": [
-                r"\bCipher\.getInstance\(\"AES/.*128"
-            ]
-        },
-        "severity": "Low",
-        "explanation": "AES-128 is secure against classical attacks but not quantum-safe."
+    "patterns": {
+        "Python": [
+            # Single-line, 16-byte literal in AES.new(b"...", ...)
+            r"\bAES\.new\s*\(\s*b?['\"][^'\"]{16}['\"]\s*,[^)]*\)"
+        ],
+        "C": [
+            # e.g. EVP_aes_128_ecb, EVP_aes_128_cbc, ...
+            r"\bEVP_aes_128_[a-zA-Z0-9_]+\b"
+        ],
+        "Java": [
+            # e.g. Cipher.getInstance("AES/...128")
+            r"\bCipher\.getInstance\(\s*\"AES\/.*128",
+            # 16-byte literal in new SecretKeySpec("...", "AES")
+            r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{16}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"AES\"\)"
+        ]
     },
+    "severity": "Low",
+    "explanation": "AES-128 is secure under classical conditions but not quantum-safe."
+    },
+
     "AES-192": {
         "patterns": {
             "Python": [
-                r"\bAES\.new\s*\(.*?\)",
-                r"\bkey\s*=\s*.{24}\b"
+                # Single-line, 24-byte literal in AES.new(b"...", ...)
+                r"\bAES\.new\s*\(\s*b?['\"][^'\"]{24}['\"]\s*,[^)]*\)"
             ],
             "C": [
                 r"\bEVP_aes_192_[a-zA-Z0-9_]+\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\"AES/.*192"
+                # e.g. Cipher.getInstance("AES/...192")
+                r"\bCipher\.getInstance\(\s*\"AES\/.*192",
+                # 24-byte literal in new SecretKeySpec("...", "AES")
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{24}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"AES\"\)"
             ]
         },
         "severity": "Very Low",
-        "explanation": "AES-192 is slightly better than AES-128, but still vulnerable to quantum attacks."
+        "explanation": "AES-192 offers slightly better security than AES-128 but is still vulnerable to quantum attacks."
     },
     "Blowfish_Short_Key": {
         "patterns": {
             "Python": [
-                r"\bfrom\s+Crypto\.Cipher\s+import\s+Blowfish\b",
-                r"\bBlowfish\.new\s*\(.*key\s*=\s*['\"].{1,15}['\"]"
-            ],
-            "C": [
-                r"\bBF_set_key\s*\(.*,\s*\d{1,2},"
-            ],
-            "Java": [
-                r"\bCipher\.getInstance\(\"Blowfish",
-                r"\bSecretKeySpec\s*\(.*,\s*\"Blowfish\""
-            ]
+            # Single-line call to Blowfish.new(key= b"literal<16bytes", ...)
+            r"\bBlowfish\.new\s*\(\s*[^)]*key\s*=\s*b['\"][^'\"]{1,15}['\"]"
+        ],
+        "C": [
+            # Must be a literal: second arg in [1..15], third is a quoted string of up to 15 chars
+            r"\bBF_set_key\s*\(\s*[^,]*,\s*(?:[1-9]|1[0-5])\s*,"
+        ],
+        "Java": [
+            # 2) new SecretKeySpec("literal<16".getBytes(), "Blowfish") => short
+            r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{1,15}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"Blowfish\""
+        ]
         },
         "severity": "High",
         "explanation": "Short key sizes are inadequate for modern security standards."
@@ -151,14 +160,13 @@ vulnerability_patterns = {
     "RC4": {
         "patterns": {
             "Python": [
-                r"\bfrom\s+Crypto\.Cipher\s+import\s+RC4\b",
-                r"\bRC4\s*\("
+                r"\bARC4\.new\s*\("
             ],
             "C": [
-                r"\bRC4_encrypt\b"
+                r"\bRC4_(?:set_key|encrypt)\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\"RC4"
+                r"\bCipher\.getInstance\(\s*\"RC4\"\s*\)"
             ]
         },
         "severity": "Very High",

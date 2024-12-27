@@ -1,9 +1,22 @@
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
+"""
+test_aes128.py
+Demonstrates AES-128 usage in Python (PyCryptodome).
+Single-line call with 16-byte literal in AES.new(...).
+"""
 
-# AES-128 encryption example (16-byte key)
-key = get_random_bytes(16)  # AES-128: 128-bit (16 bytes)
-cipher = AES.new(key, AES.MODE_ECB)
-data = b"Hello World"
-ciphertext = cipher.encrypt(data.ljust(16))  # Padding to 16 bytes
-print("Ciphertext (AES-128):", ciphertext)
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad , unpad
+def test_aes128():
+    print("=== AES-128 Test ===")
+    # 16-byte key => b"1234567890ABCDEF"
+    cipher = AES.new(b"1234567890ABCDEF", AES.MODE_ECB)
+    plaintext = b"HelloAES128"
+    ciphertext = cipher.encrypt(pad(plaintext,cipher.block_size))
+    print("Ciphertext (128):", ciphertext)
+
+    decipher = AES.new(b"1234567890ABCDEF", AES.MODE_ECB)
+    decrypted = decipher.decrypt(ciphertext)
+    print("Decrypted (128):", unpad(decrypted,cipher.block_size), "\n")
+
+if __name__ == "__main__":
+    test_aes128()
