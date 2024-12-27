@@ -678,7 +678,7 @@ help_button.pack(side="left", padx=5)
 log_label = tk.Label(root, text="Log Panel:", font=("Arial", 12))
 log_label.pack(anchor="nw", padx=10, pady=5)
 
-log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=15, width=100)
+log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=20, width=150)
 log_panel.pack(padx=10, pady=5)
 
 root.mainloop()
