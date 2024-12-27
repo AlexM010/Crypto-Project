@@ -5,6 +5,7 @@ from tkinter import filedialog, scrolledtext, simpledialog, ttk
 from pymongo import MongoClient
 from datetime import datetime
 import json
+import webbrowser
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
@@ -609,54 +610,75 @@ def export_logs():
         with open(file_path, "w", encoding="utf-8") as file:
             file.write(log_panel.get(1.0, tk.END))
 
+def open_help():
+    """Open the help PDF."""
+    webbrowser.open("docs.google.com/document/d/169w2Ff1sa_DZ_7yYJ6PitC7dVItpgvbq3WsB6DP80lc")
+
 # Tkinter GUI setup
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
-root.geometry("1600x900")
+root.geometry("1280x720")
 root.resizable(False, False)
 
-# Log panel for output
+
+# Case Management Panel
+case_frame = tk.LabelFrame(root, text="Case Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+case_frame.pack(fill="x", padx=10, pady=5)
+
+create_case_button = tk.Button(case_frame, text="Create Case and Scan", font=("Arial", 12, "bold"),
+                                bg="#007BFF", fg="white", command=create_case)
+create_case_button.pack(side="left", padx=5)
+
+load_case_button = tk.Button(case_frame, text="Load Case", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=load_case)
+load_case_button.pack(side="left", padx=5)
+
+delete_case_button = tk.Button(case_frame, text="Delete Case", font=("Arial", 12, "bold"),
+                                bg="#FF5733", fg="white", command=delete_case)
+delete_case_button.pack(side="left", padx=5)
+
+# Database Management Panel
+db_frame = tk.LabelFrame(root, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+db_frame.pack(fill="x", padx=10, pady=5)
+
+
+
+export_db_button = tk.Button(db_frame, text="Export Database", font=("Arial", 12, "bold"),
+                              bg="#17A2B8", fg="white", command=export_database)
+export_db_button.pack(side="left", padx=5)
+
+import_db_button = tk.Button(db_frame, text="Import Database", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=import_database)
+import_db_button.pack(side="left", padx=5)
+
+clear_db_button = tk.Button(db_frame, text="Clear Database", font=("Arial", 12, "bold"),
+                             bg="#DC3545", fg="white", command=clear_database)
+clear_db_button.pack(side="left", padx=5)
+# Log Management Panel
+log_frame = tk.LabelFrame(root, text="Log Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+log_frame.pack(fill="x", padx=10, pady=5)
+
+clear_button = tk.Button(log_frame, text="Clear Logs", font=("Arial", 12, "bold"),
+                         bg="#FFC107", fg="black", command=lambda: log_panel.delete(1.0, tk.END))
+clear_button.pack(side="left", padx=5)
+
+export_button = tk.Button(log_frame, text="Export Logs", font=("Arial", 12, "bold"),
+                          bg="#17A2B8", fg="white", command=export_logs)
+export_button.pack(side="left", padx=5)
+
+# Help Panel
+help_frame = tk.LabelFrame(root, text="Help", font=("Arial", 12, "bold"), padx=10, pady=10)
+help_frame.pack(fill="x", padx=10, pady=5)
+
+help_button = tk.Button(help_frame, text=" Help", font=("Arial", 12, "bold"),
+                         bg="#6C757D", fg="white", command=open_help)
+help_button.pack(side="left", padx=5)
+
+# Log Panel for Output
 log_label = tk.Label(root, text="Log Panel:", font=("Arial", 12))
 log_label.pack(anchor="nw", padx=10, pady=5)
 
-log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=25, width=100)
+log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=15, width=100)
 log_panel.pack(padx=10, pady=5)
-
-# Buttons
-create_case_button = tk.Button(root, text="Create Case and Scan", font=("Arial", 12, "bold"),
-                                bg="#007BFF", fg="white", command=create_case)
-create_case_button.pack(pady=10)
-
-load_case_button = tk.Button(root, text="Load Case", font=("Arial", 12, "bold"),
-                              bg="#28A745", fg="white", command=load_case)
-load_case_button.pack(pady=10)
-
-delete_case_button = tk.Button(root, text="Delete Case", font=("Arial", 12, "bold"),
-                                bg="#FF5733", fg="white", command=delete_case)
-delete_case_button.pack(pady=10)
-
-clear_db_button = tk.Button(root, text="Clear Database", font=("Arial", 12, "bold"),
-                             bg="#DC3545", fg="white", command=clear_database)
-clear_db_button.pack(pady=10)
-
-export_db_button = tk.Button(root, text="Export Database", font=("Arial", 12, "bold"),
-                              bg="#17A2B8", fg="white", command=export_database)
-export_db_button.pack(pady=10)
-
-import_db_button = tk.Button(root, text="Import Database", font=("Arial", 12, "bold"),
-                              bg="#28A745", fg="white", command=import_database)
-import_db_button.pack(pady=10)
-
-summary_button = tk.Button(root, text="Show Summary", font=("Arial", 12, "bold"),
-                            bg="#6C757D", fg="white", command=show_summary)
-summary_button.pack(pady=10)
-
-clear_button = tk.Button(root, text="Clear Logs", font=("Arial", 12, "bold"),
-                         bg="#FFC107", fg="black", command=lambda: log_panel.delete(1.0, tk.END))
-clear_button.pack(pady=10)
-
-export_button = tk.Button(root, text="Export Logs", font=("Arial", 12, "bold"),
-                          bg="#17A2B8", fg="white", command=export_logs)
-export_button.pack(pady=10)
 
 root.mainloop()
