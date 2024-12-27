@@ -13,5 +13,10 @@ public class DESExample {
         byte[] encrypted = cipher.doFinal("Hello World".getBytes());
 
         System.out.println("Encrypted data: " + new String(encrypted));
+
+        cipher.init(Cipher.DECRYPT_MODE, key);
+        byte[] decrypted = cipher.doFinal(encrypted);
+
+        System.out.println("Decrypted data: " + new String(decrypted));
     }
 }

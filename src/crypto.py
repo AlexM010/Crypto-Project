@@ -1,16 +1,18 @@
 import os
 import re
 import tkinter as tk
-from tkinter import filedialog, scrolledtext
+from tkinter import filedialog, scrolledtext, simpledialog, ttk
 from pymongo import MongoClient
 from datetime import datetime
+import json
+import webbrowser
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
 db = client["cryptographic_inventory"]
 scans_collection = db["scans"]
 
-# Vulnerability patterns for AES, 3DES, RC4, DES, and RSA
+# Vulnerability patterns (existing patterns from your code)
 vulnerability_patterns = {
     "DES": {
         "patterns": {
@@ -19,113 +21,140 @@ vulnerability_patterns = {
                 r"\bDES\.new\s*\("
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
-                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ecb\b",
-                r"\bDES_set_key_checked\b"
+                r"\bDES_set_key_checked\b",
+                r"\bDES_\w+_(?:en|de)crypt\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\s*\"DES",
-                r"\bSecretKeySpec\s*\(.*,\s*\"DES\""
+                # e.g. Cipher.getInstance("DES/ECB/PKCS5Padding")
+                r"\bCipher\.getInstance\(\s*\"DES(?!ede)(?:/[^\"/]*)*",
+                # e.g. new SecretKeySpec("12345678".getBytes(), "DES")
+                r"\bSecretKeySpec\s*\(\s*\"[^\"\r\n]*\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DES\""
             ]
         },
         "severity": "Very High",
-        "explanation": "DES is insecure due to its 56-bit key size, making it vulnerable to brute-force attacks."
+        "explanation": "DES is insecure (56-bit key), vulnerable to brute force."
     },
+
     "3DES_1KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Single line: DES3.new(...) with 8-byte block repeated thrice => 24 total
+                r"\bDES3\.new\s*\(\s*b?['\"](.{8})\1\1['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bEVP_DecryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_set_key_unchecked\s*\(.*,\s*&key_schedule\)",
-                r"\bDES_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule,\s*DES_ENCRYPT\)"
+                # Single line: EVP_(Encrypt|Decrypt)Init_ex(..., "ABCDEFGHABCDEFGHABCDEFGH", ...)
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"(.{8})\1\1\",[^)]*\)"
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\)"
+                # (A) Cipher.getInstance("DESede/...") => detect 3DES usage
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) new SecretKeySpec("ABCDEFGHABCDEFGHABCDEFGH".getBytes(), "DESede") => single key repeated
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"(.{8})\1\1\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "Very High",
-        "explanation": "3DES with 1 key offers no additional security over DES and is insecure."
+        "explanation": "3DES with one repeated 8-byte block (24 total) is effectively single-DES security."
     },
+
     "3DES_2KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Traditional approach: 16 bytes => 2-key. But PyCryptodome typically expects 24 bytes.
+                # If you're specifically scanning for a '16-byte literal' approach, you can keep:
+                r"\bDES3\.new\s*\(\s*b?['\"][^'\"]{16}['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[0\],\s*DES_ENCRYPT\)"
+                # 16 bytes => 2-key (some OpenSSL usage). Actually still 24 bytes is typical, but we keep for reference.
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"[^\"\r\n]{16}\","
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}16"
+                # (A) Cipher.getInstance("DESede/..."):
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) 2-key in a 24-byte block => K1 != K2 => K1 => e.g. "12345678abcdefgh12345678"
+                # (8 bytes for K1), (8 bytes for K2 != K1), then (K1) again
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"(.{8})(?!\1)(.{8})\1\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "High",
-        "explanation": "3DES with 2 keys provides ~80 bits of security, which is inadequate by modern standards."
+        "explanation": "2-key 3DES in Java: 24 bytes but only 2 unique blocks (K1,K2,K1). ~112-bit security."
     },
+
     "3DES_3KEY": {
         "patterns": {
             "Python": [
-                r"\bDES3\.new\s*\(.*,\s*\"DESede\"\)"
+                # Single line: DES3.new(...) => 24 bytes, not repeated
+                r"\bDES3\.new\s*\(\s*b?['\"][^'\"]{24}['\"]\s*,[^)]*\)"
             ],
             "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_ede3_ecb\b",
-                r"\bDES_ede3_ecb_encrypt\s*\(.*,\s*&ciphertext,\s*&key_schedule\[0\],\s*&key_schedule\[1\],\s*&key_schedule\[2\],\s*DES_ENCRYPT\)"
+                # 24-byte => 3-key. If you want negative lookahead to exclude repeated blocks, do:
+                # r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"(?!(.{8})\1\1)([^\"\r\n]{24})\","
+                r"\bEVP_(?:Encrypt|Decrypt)Init_ex\s*\(\s*[^,]*,\s*EVP_des_ede3_\w+\s*\(\)\s*,[^,]*,\s*\"[^\"\r\n]{24}\","
             ],
             "Java": [
-                r"\bSecretKeySpec\s*\(.*,\s*\"DESede\"\).{0,40}24"
+                # (A) Cipher.getInstance("DESede/...")
+                r"\bCipher\.getInstance\(\s*\"DESede(?:/[^\"/]*)*",
+                # (B) new SecretKeySpec(... 24 bytes ...), not repeated => negative lookahead if you want to exclude single-key
+                # e.g.   r"\bnew\s+SecretKeySpec\s*\(\s*\"(?!(.{8})\1\1)([^\"\r\n]{24})\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{24}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"DESede\"\)"
             ]
         },
         "severity": "High",
-        "explanation": "3DES with 3 keys provides ~112 bits of security, which is insufficient against quantum attacks."
+        "explanation": "3-key 3DES (~112-bit). Stronger than 1- or 2-key but still considered legacy."
     },
     "AES-128": {
-        "patterns": {
-            "Python": [
-                r"\bAES\.new\s*\(.*?\)",
-                r"\bkey\s*=\s*.{16}\b"
-            ],
-            "C": [
-                r"\bEVP_aes_128_[a-zA-Z0-9_]+\b"
-            ],
-            "Java": [
-                r"\bCipher\.getInstance\(\"AES/.*128"
-            ]
-        },
-        "severity": "Low",
-        "explanation": "AES-128 is secure against classical attacks but not quantum-safe."
+    "patterns": {
+        "Python": [
+            # Single-line, 16-byte literal in AES.new(b"...", ...)
+            r"\bAES\.new\s*\(\s*b?['\"][^'\"]{16}['\"]\s*,[^)]*\)"
+        ],
+        "C": [
+            # e.g. EVP_aes_128_ecb, EVP_aes_128_cbc, ...
+            r"\bEVP_aes_128_[a-zA-Z0-9_]+\b"
+        ],
+        "Java": [
+            # e.g. Cipher.getInstance("AES/...128")
+            r"\bCipher\.getInstance\(\s*\"AES\/.*128",
+            # 16-byte literal in new SecretKeySpec("...", "AES")
+            r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{16}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"AES\"\)"
+        ]
     },
+    "severity": "Low",
+    "explanation": "AES-128 is secure under classical conditions but not quantum-safe."
+    },
+
     "AES-192": {
         "patterns": {
             "Python": [
-                r"\bAES\.new\s*\(.*?\)",
-                r"\bkey\s*=\s*.{24}\b"
+                # Single-line, 24-byte literal in AES.new(b"...", ...)
+                r"\bAES\.new\s*\(\s*b?['\"][^'\"]{24}['\"]\s*,[^)]*\)"
             ],
             "C": [
                 r"\bEVP_aes_192_[a-zA-Z0-9_]+\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\"AES/.*192"
+                # e.g. Cipher.getInstance("AES/...192")
+                r"\bCipher\.getInstance\(\s*\"AES\/.*192",
+                # 24-byte literal in new SecretKeySpec("...", "AES")
+                r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{24}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"AES\"\)"
             ]
         },
         "severity": "Very Low",
-        "explanation": "AES-192 is slightly better than AES-128, but still vulnerable to quantum attacks."
+        "explanation": "AES-192 offers slightly better security than AES-128 but is still vulnerable to quantum attacks."
     },
     "Blowfish_Short_Key": {
         "patterns": {
             "Python": [
-                r"\bfrom\s+Crypto\.Cipher\s+import\s+Blowfish\b",
-                r"\bBlowfish\.new\s*\(.*key\s*=\s*['\"].{1,15}['\"]"
-            ],
-            "C": [
-                r"\bBF_set_key\s*\(.*,\s*\d{1,2},"
-            ],
-            "Java": [
-                r"\bCipher\.getInstance\(\"Blowfish",
-                r"\bSecretKeySpec\s*\(.*,\s*\"Blowfish\""
-            ]
+            # Single-line call to Blowfish.new(key= b"literal<16bytes", ...)
+            r"\bBlowfish\.new\s*\(\s*[^)]*key\s*=\s*b['\"][^'\"]{1,15}['\"]"
+        ],
+        "C": [
+            # Must be a literal: second arg in [1..15], third is a quoted string of up to 15 chars
+            r"\bBF_set_key\s*\(\s*[^,]*,\s*(?:[1-9]|1[0-5])\s*,"
+        ],
+        "Java": [
+            # 2) new SecretKeySpec("literal<16".getBytes(), "Blowfish") => short
+            r"\bnew\s+SecretKeySpec\s*\(\s*\"[^\"\r\n]{1,15}\"\.getBytes\s*\(\s*[^)]*\)\s*,\s*\"Blowfish\""
+        ]
         },
         "severity": "High",
         "explanation": "Short key sizes are inadequate for modern security standards."
@@ -133,14 +162,13 @@ vulnerability_patterns = {
     "RC4": {
         "patterns": {
             "Python": [
-                r"\bfrom\s+Crypto\.Cipher\s+import\s+RC4\b",
-                r"\bRC4\s*\("
+                r"\bARC4\.new\s*\("
             ],
             "C": [
-                r"\bRC4_encrypt\b"
+                r"\bRC4_(?:set_key|encrypt)\b"
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\"RC4"
+                r"\bCipher\.getInstance\(\s*\"RC4\"\s*\)"
             ]
         },
         "severity": "Very High",
@@ -373,10 +401,8 @@ vulnerability_patterns = {
     }
 }
 
-
-
+# Function to scan for vulnerabilities (same as your code)
 def scan_for_vulnerability(file_path, patterns):
-    """Check a single file for vulnerabilities."""
     findings = []
     try:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -396,20 +422,20 @@ def scan_for_vulnerability(file_path, patterns):
         log_panel.see(tk.END)
     return findings
 
-def scan_vulnerabilities(folder):
-    """Scan folder for vulnerabilities and save findings in MongoDB."""
-    log_panel.insert(tk.END, f"Scanning folder: {folder}\n")
+def scan_vulnerabilities(folder, case_name):
+    """Scan folder for vulnerabilities and save findings in a specific case."""
+    log_panel.insert(tk.END, f"Scanning folder: {folder} for case: {case_name}\n")
     log_panel.see(tk.END)
 
     # Metadata for the scan
-    scan_id = scans_collection.estimated_document_count() + 1
+    scan_id = case_name
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_counts = {"Python": 0, "C": 0, "Java": 0}
     vulnerable_counts = {"Python": 0, "C": 0, "Java": 0}
     total_files = 0
     total_vulnerable_files = 0
     vulnerabilities = []
-    found_files = set()  # To avoid double-counting files with the same vulnerabilities
+    found_files = set()
 
     for root, _, files in os.walk(folder):
         for file in files:
@@ -427,21 +453,17 @@ def scan_vulnerabilities(folder):
                 total_files += 1
                 file_path = os.path.join(root, file)
 
-                # Skip already found files
                 if file_path in found_files:
                     continue
 
-                # Scan for each vulnerability
                 for vuln_name, vuln_details in vulnerability_patterns.items():
                     vuln_findings = scan_for_vulnerability(file_path, {lang: vuln_details["patterns"].get(lang, [])})
                     
-                    # Ensure that the file is processed correctly
                     if vuln_findings:
                         vulnerable_counts[lang] += 1
                         total_vulnerable_files += 1
                         found_files.add(file_path)
 
-                        # Merge occurrences of the same vulnerability in the same file
                         merged_vulnerability = {
                             "language": lang,
                             "filename": file,
@@ -457,12 +479,10 @@ def scan_vulnerabilities(folder):
                                 "content": finding["content"]
                             })
 
-                        # Add the merged entry to vulnerabilities
                         vulnerabilities.append(merged_vulnerability)
                         log_panel.insert(tk.END, f"[INFO] {vuln_name} vulnerability found in {file_path}\n")
                         log_panel.see(tk.END)
 
-    # Save scan metadata and vulnerabilities to MongoDB
     scan_document = {
         "scan_id": scan_id,
         "date": date,
@@ -473,9 +493,8 @@ def scan_vulnerabilities(folder):
     }
     scans_collection.insert_one(scan_document)
 
-    # Print stats
     log_panel.insert(tk.END, f"\nScan Statistics:\n")
-    log_panel.insert(tk.END, f"Scan ID: {scan_id}\n")
+    log_panel.insert(tk.END, f"Case Name: {case_name}\n")
     log_panel.insert(tk.END, f"Total files scanned: {total_files}\n")
     for lang, count in file_counts.items():
         log_panel.insert(tk.END, f"{lang} files: {count}\n")
@@ -484,37 +503,182 @@ def scan_vulnerabilities(folder):
         log_panel.insert(tk.END, f"Vulnerable {lang} files: {count}\n")
     log_panel.see(tk.END)
 
-# GUI functionality
-def select_folder_and_scan():
-    """Select folder and scan for vulnerabilities."""
-    folder = filedialog.askdirectory()
-    if folder:
-        scan_vulnerabilities(folder)
+def create_case():
+    """Create a new case and perform a scan."""
+    case_name = simpledialog.askstring("Create Case", "Enter a name for the case:")
+    if case_name:
+        folder = filedialog.askdirectory()
+        if folder:
+            scan_vulnerabilities(folder, case_name)
+
+def load_case():
+    """Load and display a specific case."""
+    case_names = [case["scan_id"] for case in scans_collection.find()]
+    if not case_names:
+        log_panel.insert(tk.END, "No cases available to load.\n")
+        return
+
+    load_window = tk.Toplevel(root)
+    load_window.title("Select Case to Load")
+
+    label = tk.Label(load_window, text="Select a case:")
+    label.pack(padx=10, pady=5)
+
+    case_var = tk.StringVar(load_window)
+    case_dropdown = ttk.Combobox(load_window, textvariable=case_var, values=case_names, state="readonly")
+    case_dropdown.pack(padx=10, pady=5)
+
+    def confirm_load():
+        case_name = case_var.get()
+        case = scans_collection.find_one({"scan_id": case_name})
+        if case:
+            log_panel.insert(tk.END, f"\nCase Name: {case_name}\n")
+            log_panel.insert(tk.END, f"Date: {case['date']}\n")
+            log_panel.insert(tk.END, f"Directory: {case['directory']}\n")
+            log_panel.insert(tk.END, f"Files Scanned: {case['files_scanned']}\n")
+            log_panel.insert(tk.END, f"Vulnerabilities: {case['vulnerabilities']}\n")
+        else:
+            log_panel.insert(tk.END, f"Case {case_name} not found.\n")
+        load_window.destroy()
+
+    load_button = tk.Button(load_window, text="Load", command=confirm_load)
+    load_button.pack(pady=10)
+
+def delete_case():
+    """Delete a specific case."""
+    case_names = [case["scan_id"] for case in scans_collection.find()]
+    if not case_names:
+        log_panel.insert(tk.END, "No cases available to delete.\n")
+        return
+
+    delete_window = tk.Toplevel(root)
+    delete_window.title("Select Case to Delete")
+
+    label = tk.Label(delete_window, text="Select a case:")
+    label.pack(padx=10, pady=5)
+
+    case_var = tk.StringVar(delete_window)
+    case_dropdown = ttk.Combobox(delete_window, textvariable=case_var, values=case_names, state="readonly")
+    case_dropdown.pack(padx=10, pady=5)
+
+    def confirm_delete():
+        case_name = case_var.get()
+        result = scans_collection.delete_one({"scan_id": case_name})
+        if result.deleted_count > 0:
+            log_panel.insert(tk.END, f"Case {case_name} deleted successfully.\n")
+        else:
+            log_panel.insert(tk.END, f"Case {case_name} not found.\n")
+        delete_window.destroy()
+
+    delete_button = tk.Button(delete_window, text="Delete", command=confirm_delete)
+    delete_button.pack(pady=10)
+
+def clear_database():
+    """Clear the entire database."""
+    if simpledialog.askstring("Confirm", "Type 'CLEAR' to confirm database deletion:") == "CLEAR":
+        scans_collection.delete_many({})
+        log_panel.insert(tk.END, "Database cleared successfully.\n")
+
+def export_database():
+    """Export the database to a JSON file."""
+    file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+    if file_path:
+        data = list(scans_collection.find({}, {"_id": 0}))
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, indent=4)
+        log_panel.insert(tk.END, f"Database exported to {file_path}\n")
+
+def import_database():
+    """Import a JSON file into the database."""
+    file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+    if file_path:
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            scans_collection.insert_many(data)
+        log_panel.insert(tk.END, f"Database imported from {file_path}\n")
+
+def show_summary():
+    """Show summary of all cases."""
+    cases = scans_collection.find()
+    for case in cases:
+        log_panel.insert(tk.END, f"Case Name: {case['scan_id']}, Date: {case['date']}, Files Scanned: {case['files_scanned']}\n")
+
+def export_logs():
+    """Export logs to a file."""
+    file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")])
+    if file_path:
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(log_panel.get(1.0, tk.END))
+
+def open_help():
+    """Open the help PDF."""
+    webbrowser.open("docs.google.com/document/d/169w2Ff1sa_DZ_7yYJ6PitC7dVItpgvbq3WsB6DP80lc")
 
 # Tkinter GUI setup
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
-root.geometry("850x600")
+root.geometry("1280x720")
 root.resizable(False, False)
 
-# Log panel for output
+
+# Case Management Panel
+case_frame = tk.LabelFrame(root, text="Case Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+case_frame.pack(fill="x", padx=10, pady=5)
+
+create_case_button = tk.Button(case_frame, text="Create Case and Scan", font=("Arial", 12, "bold"),
+                                bg="#007BFF", fg="white", command=create_case)
+create_case_button.pack(side="left", padx=5)
+
+load_case_button = tk.Button(case_frame, text="Load Case", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=load_case)
+load_case_button.pack(side="left", padx=5)
+
+delete_case_button = tk.Button(case_frame, text="Delete Case", font=("Arial", 12, "bold"),
+                                bg="#FF5733", fg="white", command=delete_case)
+delete_case_button.pack(side="left", padx=5)
+
+# Database Management Panel
+db_frame = tk.LabelFrame(root, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+db_frame.pack(fill="x", padx=10, pady=5)
+
+
+
+export_db_button = tk.Button(db_frame, text="Export Database", font=("Arial", 12, "bold"),
+                              bg="#17A2B8", fg="white", command=export_database)
+export_db_button.pack(side="left", padx=5)
+
+import_db_button = tk.Button(db_frame, text="Import Database", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=import_database)
+import_db_button.pack(side="left", padx=5)
+
+clear_db_button = tk.Button(db_frame, text="Clear Database", font=("Arial", 12, "bold"),
+                             bg="#DC3545", fg="white", command=clear_database)
+clear_db_button.pack(side="left", padx=5)
+# Log Management Panel
+log_frame = tk.LabelFrame(root, text="Log Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+log_frame.pack(fill="x", padx=10, pady=5)
+
+clear_button = tk.Button(log_frame, text="Clear Logs", font=("Arial", 12, "bold"),
+                         bg="#FFC107", fg="black", command=lambda: log_panel.delete(1.0, tk.END))
+clear_button.pack(side="left", padx=5)
+
+export_button = tk.Button(log_frame, text="Export Logs", font=("Arial", 12, "bold"),
+                          bg="#17A2B8", fg="white", command=export_logs)
+export_button.pack(side="left", padx=5)
+
+# Help Panel
+help_frame = tk.LabelFrame(root, text="Help", font=("Arial", 12, "bold"), padx=10, pady=10)
+help_frame.pack(fill="x", padx=10, pady=5)
+
+help_button = tk.Button(help_frame, text=" Help", font=("Arial", 12, "bold"),
+                         bg="#6C757D", fg="white", command=open_help)
+help_button.pack(side="left", padx=5)
+
+# Log Panel for Output
 log_label = tk.Label(root, text="Log Panel:", font=("Arial", 12))
 log_label.pack(anchor="nw", padx=10, pady=5)
 
-log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=25, width=100)
+log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=20, width=150)
 log_panel.pack(padx=10, pady=5)
-
-# Buttons
-scan_button = tk.Button(root, text="Scan for Vulnerabilities", font=("Arial", 12, "bold"),
-                        bg="#007BFF", fg="white", command=select_folder_and_scan)
-scan_button.pack(pady=10)
-
-clear_button = tk.Button(root, text="Clear Logs", font=("Arial", 12, "bold"),
-                         bg="#FF5733", fg="white", command=lambda: log_panel.delete(1.0, tk.END))
-clear_button.pack(pady=10)
-
-export_button = tk.Button(root, text="Export Logs", font=("Arial", 12, "bold"),
-                          bg="#FFA500", fg="white", command=lambda: export_logs())
-export_button.pack(pady=10)
 
 root.mainloop()

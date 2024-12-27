@@ -13,5 +13,9 @@ public class RC4Example {
         byte[] encrypted = cipher.doFinal("Hello World".getBytes());
         
         System.out.println("Ciphertext (RC4): " + new String(encrypted));
+
+        cipher.init(Cipher.DECRYPT_MODE, rc4Key);
+        byte[] decrypted = cipher.doFinal(encrypted);
+        System.out.println("Decrypted: " + new String(decrypted));
     }
 }
