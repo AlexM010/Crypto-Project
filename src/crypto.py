@@ -1,16 +1,17 @@
 import os
 import re
 import tkinter as tk
-from tkinter import filedialog, scrolledtext
+from tkinter import filedialog, scrolledtext, simpledialog, ttk
 from pymongo import MongoClient
 from datetime import datetime
+import json
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
 db = client["cryptographic_inventory"]
 scans_collection = db["scans"]
 
-# Vulnerability patterns for AES, 3DES, RC4, DES, and RSA
+# Vulnerability patterns (existing patterns from your code)
 vulnerability_patterns = {
     "DES": {
         "patterns": {
@@ -399,10 +400,8 @@ vulnerability_patterns = {
     }
 }
 
-
-
+# Function to scan for vulnerabilities (same as your code)
 def scan_for_vulnerability(file_path, patterns):
-    """Check a single file for vulnerabilities."""
     findings = []
     try:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -422,20 +421,20 @@ def scan_for_vulnerability(file_path, patterns):
         log_panel.see(tk.END)
     return findings
 
-def scan_vulnerabilities(folder):
-    """Scan folder for vulnerabilities and save findings in MongoDB."""
-    log_panel.insert(tk.END, f"Scanning folder: {folder}\n")
+def scan_vulnerabilities(folder, case_name):
+    """Scan folder for vulnerabilities and save findings in a specific case."""
+    log_panel.insert(tk.END, f"Scanning folder: {folder} for case: {case_name}\n")
     log_panel.see(tk.END)
 
     # Metadata for the scan
-    scan_id = scans_collection.estimated_document_count() + 1
+    scan_id = case_name
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_counts = {"Python": 0, "C": 0, "Java": 0}
     vulnerable_counts = {"Python": 0, "C": 0, "Java": 0}
     total_files = 0
     total_vulnerable_files = 0
     vulnerabilities = []
-    found_files = set()  # To avoid double-counting files with the same vulnerabilities
+    found_files = set()
 
     for root, _, files in os.walk(folder):
         for file in files:
@@ -453,21 +452,17 @@ def scan_vulnerabilities(folder):
                 total_files += 1
                 file_path = os.path.join(root, file)
 
-                # Skip already found files
                 if file_path in found_files:
                     continue
 
-                # Scan for each vulnerability
                 for vuln_name, vuln_details in vulnerability_patterns.items():
                     vuln_findings = scan_for_vulnerability(file_path, {lang: vuln_details["patterns"].get(lang, [])})
                     
-                    # Ensure that the file is processed correctly
                     if vuln_findings:
                         vulnerable_counts[lang] += 1
                         total_vulnerable_files += 1
                         found_files.add(file_path)
 
-                        # Merge occurrences of the same vulnerability in the same file
                         merged_vulnerability = {
                             "language": lang,
                             "filename": file,
@@ -483,12 +478,10 @@ def scan_vulnerabilities(folder):
                                 "content": finding["content"]
                             })
 
-                        # Add the merged entry to vulnerabilities
                         vulnerabilities.append(merged_vulnerability)
                         log_panel.insert(tk.END, f"[INFO] {vuln_name} vulnerability found in {file_path}\n")
                         log_panel.see(tk.END)
 
-    # Save scan metadata and vulnerabilities to MongoDB
     scan_document = {
         "scan_id": scan_id,
         "date": date,
@@ -499,9 +492,8 @@ def scan_vulnerabilities(folder):
     }
     scans_collection.insert_one(scan_document)
 
-    # Print stats
     log_panel.insert(tk.END, f"\nScan Statistics:\n")
-    log_panel.insert(tk.END, f"Scan ID: {scan_id}\n")
+    log_panel.insert(tk.END, f"Case Name: {case_name}\n")
     log_panel.insert(tk.END, f"Total files scanned: {total_files}\n")
     for lang, count in file_counts.items():
         log_panel.insert(tk.END, f"{lang} files: {count}\n")
@@ -510,17 +502,117 @@ def scan_vulnerabilities(folder):
         log_panel.insert(tk.END, f"Vulnerable {lang} files: {count}\n")
     log_panel.see(tk.END)
 
-# GUI functionality
-def select_folder_and_scan():
-    """Select folder and scan for vulnerabilities."""
-    folder = filedialog.askdirectory()
-    if folder:
-        scan_vulnerabilities(folder)
+def create_case():
+    """Create a new case and perform a scan."""
+    case_name = simpledialog.askstring("Create Case", "Enter a name for the case:")
+    if case_name:
+        folder = filedialog.askdirectory()
+        if folder:
+            scan_vulnerabilities(folder, case_name)
+
+def load_case():
+    """Load and display a specific case."""
+    case_names = [case["scan_id"] for case in scans_collection.find()]
+    if not case_names:
+        log_panel.insert(tk.END, "No cases available to load.\n")
+        return
+
+    load_window = tk.Toplevel(root)
+    load_window.title("Select Case to Load")
+
+    label = tk.Label(load_window, text="Select a case:")
+    label.pack(padx=10, pady=5)
+
+    case_var = tk.StringVar(load_window)
+    case_dropdown = ttk.Combobox(load_window, textvariable=case_var, values=case_names, state="readonly")
+    case_dropdown.pack(padx=10, pady=5)
+
+    def confirm_load():
+        case_name = case_var.get()
+        case = scans_collection.find_one({"scan_id": case_name})
+        if case:
+            log_panel.insert(tk.END, f"\nCase Name: {case_name}\n")
+            log_panel.insert(tk.END, f"Date: {case['date']}\n")
+            log_panel.insert(tk.END, f"Directory: {case['directory']}\n")
+            log_panel.insert(tk.END, f"Files Scanned: {case['files_scanned']}\n")
+            log_panel.insert(tk.END, f"Vulnerabilities: {case['vulnerabilities']}\n")
+        else:
+            log_panel.insert(tk.END, f"Case {case_name} not found.\n")
+        load_window.destroy()
+
+    load_button = tk.Button(load_window, text="Load", command=confirm_load)
+    load_button.pack(pady=10)
+
+def delete_case():
+    """Delete a specific case."""
+    case_names = [case["scan_id"] for case in scans_collection.find()]
+    if not case_names:
+        log_panel.insert(tk.END, "No cases available to delete.\n")
+        return
+
+    delete_window = tk.Toplevel(root)
+    delete_window.title("Select Case to Delete")
+
+    label = tk.Label(delete_window, text="Select a case:")
+    label.pack(padx=10, pady=5)
+
+    case_var = tk.StringVar(delete_window)
+    case_dropdown = ttk.Combobox(delete_window, textvariable=case_var, values=case_names, state="readonly")
+    case_dropdown.pack(padx=10, pady=5)
+
+    def confirm_delete():
+        case_name = case_var.get()
+        result = scans_collection.delete_one({"scan_id": case_name})
+        if result.deleted_count > 0:
+            log_panel.insert(tk.END, f"Case {case_name} deleted successfully.\n")
+        else:
+            log_panel.insert(tk.END, f"Case {case_name} not found.\n")
+        delete_window.destroy()
+
+    delete_button = tk.Button(delete_window, text="Delete", command=confirm_delete)
+    delete_button.pack(pady=10)
+
+def clear_database():
+    """Clear the entire database."""
+    if simpledialog.askstring("Confirm", "Type 'CLEAR' to confirm database deletion:") == "CLEAR":
+        scans_collection.delete_many({})
+        log_panel.insert(tk.END, "Database cleared successfully.\n")
+
+def export_database():
+    """Export the database to a JSON file."""
+    file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+    if file_path:
+        data = list(scans_collection.find({}, {"_id": 0}))
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, indent=4)
+        log_panel.insert(tk.END, f"Database exported to {file_path}\n")
+
+def import_database():
+    """Import a JSON file into the database."""
+    file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+    if file_path:
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            scans_collection.insert_many(data)
+        log_panel.insert(tk.END, f"Database imported from {file_path}\n")
+
+def show_summary():
+    """Show summary of all cases."""
+    cases = scans_collection.find()
+    for case in cases:
+        log_panel.insert(tk.END, f"Case Name: {case['scan_id']}, Date: {case['date']}, Files Scanned: {case['files_scanned']}\n")
+
+def export_logs():
+    """Export logs to a file."""
+    file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")])
+    if file_path:
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(log_panel.get(1.0, tk.END))
 
 # Tkinter GUI setup
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
-root.geometry("850x600")
+root.geometry("1600x900")
 root.resizable(False, False)
 
 # Log panel for output
@@ -531,16 +623,40 @@ log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10),
 log_panel.pack(padx=10, pady=5)
 
 # Buttons
-scan_button = tk.Button(root, text="Scan for Vulnerabilities", font=("Arial", 12, "bold"),
-                        bg="#007BFF", fg="white", command=select_folder_and_scan)
-scan_button.pack(pady=10)
+create_case_button = tk.Button(root, text="Create Case and Scan", font=("Arial", 12, "bold"),
+                                bg="#007BFF", fg="white", command=create_case)
+create_case_button.pack(pady=10)
+
+load_case_button = tk.Button(root, text="Load Case", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=load_case)
+load_case_button.pack(pady=10)
+
+delete_case_button = tk.Button(root, text="Delete Case", font=("Arial", 12, "bold"),
+                                bg="#FF5733", fg="white", command=delete_case)
+delete_case_button.pack(pady=10)
+
+clear_db_button = tk.Button(root, text="Clear Database", font=("Arial", 12, "bold"),
+                             bg="#DC3545", fg="white", command=clear_database)
+clear_db_button.pack(pady=10)
+
+export_db_button = tk.Button(root, text="Export Database", font=("Arial", 12, "bold"),
+                              bg="#17A2B8", fg="white", command=export_database)
+export_db_button.pack(pady=10)
+
+import_db_button = tk.Button(root, text="Import Database", font=("Arial", 12, "bold"),
+                              bg="#28A745", fg="white", command=import_database)
+import_db_button.pack(pady=10)
+
+summary_button = tk.Button(root, text="Show Summary", font=("Arial", 12, "bold"),
+                            bg="#6C757D", fg="white", command=show_summary)
+summary_button.pack(pady=10)
 
 clear_button = tk.Button(root, text="Clear Logs", font=("Arial", 12, "bold"),
-                         bg="#FF5733", fg="white", command=lambda: log_panel.delete(1.0, tk.END))
+                         bg="#FFC107", fg="black", command=lambda: log_panel.delete(1.0, tk.END))
 clear_button.pack(pady=10)
 
 export_button = tk.Button(root, text="Export Logs", font=("Arial", 12, "bold"),
-                          bg="#FFA500", fg="white", command=lambda: export_logs())
+                          bg="#17A2B8", fg="white", command=export_logs)
 export_button.pack(pady=10)
 
 root.mainloop()
