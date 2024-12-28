@@ -177,18 +177,15 @@ vulnerability_patterns = {
     "RSA_512_1024": {
         "patterns": {
             "Python": [
-                r"\bRSA\.new_key\s*\(512\)",
-                r"\bRSA\.new_key\s*\(1024\)"
+                r"\bRSA\.generate\(\s*512\s*\)",  # Detects RSA.generate(512) in Python
+                r"\bRSA\.generate\(\s*1024\s*\)"  # Detects RSA.generate(1024) in Python
             ],
             "C": [
-                r"\bRSA_generate_key\s*\(512\)",
-                r"\bRSA_generate_key\s*\(1024\)"
+                r"\bRSA_generate_key\(\s*512\s*,",  # Detects RSA_generate_key with key size 512
+                r"\bRSA_generate_key\(\s*1024\s*,"  # Detects RSA_generate_key with key size 1024
             ],
             "Java": [
-                r"\bKeyPairGenerator\.getInstance\(\"RSA\"",
-                r"\bkeysize\s*=\s*512\b",
-                r"\bkeysize\s*=\s*1024\b"
-            ]
+               ]
         },
         "severity": "High",
         "explanation": "RSA with short keys (512, 1024 bits) is easily breakable."
@@ -196,17 +193,15 @@ vulnerability_patterns = {
     "RSA_2048_3072": {
         "patterns": {
             "Python": [
-                r"\bRSA\.new_key\s*\(2048\)",
-                r"\bRSA\.new_key\s*\(3072\)"
+                r"\bRSA\.generate\(\s*2048\s*\)",  # Detects RSA.generate(2048) in Python
+                r"\bRSA\.generate\(\s*3072\s*\)"  # Detects RSA.generate(3072) in Python
             ],
-            "C": [
-                r"\bRSA_generate_key\s*\(2048\)",
-                r"\bRSA_generate_key\s*\(3072\)"
+             "C": [
+                r"\bRSA_generate_key\(\s*2048\s*,",  # Detects RSA_generate_key with key size 2048
+                r"\bRSA_generate_key\(\s*3072\s*,"  # Detects RSA_generate_key with key size 3072
             ],
             "Java": [
-                r"\bKeyPairGenerator\.getInstance\(\"RSA\"",
-                r"\bkeysize\s*=\s*2048\b",
-                r"\bkeysize\s*=\s*3072\b"
+            
             ]
         },
         "severity": "Very Low",
@@ -215,16 +210,14 @@ vulnerability_patterns = {
     "RSA_no_padding": {
         "patterns": {
             "Python": [
-                r"\bRSA\.encrypt\s*\(.*,\s*None\)",
-                r"\bRSA\.decrypt\s*\(.*,\s*None\)"
             ],
             "C": [
-                r"\bRSA_private_encrypt\s*\(.*,\s*RSA_NO_PADDING\)",
-                r"\bRSA_public_encrypt\s*\(.*,\s*RSA_NO_PADDING\)"
+                r"\bRSA_private_encrypt\s*\(.*?,\s*RSA_NO_PADDING\s*\)",  # Detects RSA encryption without padding in C
+                r"\bRSA_public_encrypt\s*\(.*?,\s*RSA_NO_PADDING\s*\)"  # Detects RSA decryption without padding in C
             ],
             "Java": [
-                r"\bCipher\.getInstance\(\"RSA/None\"",
-                r"\bRSAEncryptionPadding\.NoPadding"
+                r'\bCipher\.getInstance\(\s*"RSA/ECB/NoPadding"\s*\)',  # Detects RSA without padding in Java
+                r"\bRSAEncryptionPadding\.NoPadding"  # Detects usage of NoPadding in Java
             ]
         },
         "severity": "Moderate",
@@ -233,7 +226,6 @@ vulnerability_patterns = {
     "ECDH": {
         "patterns": {
             "Python": [
-                r"\bfrom\s+Crypto\.Protocol\.KDF\s+import\s+ECDH\b",
                 r"\bECDH\s*\("
             ],
             "C": [
@@ -319,7 +311,6 @@ vulnerability_patterns = {
         "patterns": {
             "Python": [
                 r"\bhashlib\.sha256\b",
-                r"\bfrom\s+Crypto\.Hash\s+import\s+SHA256\b"
             ],
             "C": [
                 r"\bSHA256_Init\b",

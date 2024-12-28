@@ -8,5 +8,11 @@ public class MD5Test {
         MessageDigest md5 = MessageDigest.getInstance("MD5");
         byte[] md5Hash = md5.digest(data.getBytes());
         System.out.println("MD5 hash computed.");
+
+        // Print MD5 hash
+        for (byte b : md5Hash) {
+            System.out.printf("%02x", b);
+        }
+        System.out.println();
     }
 }
