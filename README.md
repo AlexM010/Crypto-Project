@@ -11,7 +11,7 @@ This repo was created for the needs of the course "Introduction to Cryptography"
 
 ## Project Description
 
-This  project  focuses  on  building  a crypto  agility2frameworkdesigned  to facilitate  transition from  cryptographically  vulnerable  to  cryptographically  strong primitives3.  That  includes  the  transition of Post-Quantum  Cryptography4(PQC)algorithms into existing infrastructures.
+This  project  focuses  on  building  a crypto  agility framework designed  to facilitate  transition from  cryptographically  vulnerable  to  cryptographically  strong primitives.  That  includes  the  transition of Post-Quantum  Cryptography (PQC) algorithms into existing infrastructures.
 
 ## Project Model
 
