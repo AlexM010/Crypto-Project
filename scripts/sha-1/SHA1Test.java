@@ -8,5 +8,10 @@ public class SHA1Test {
         MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
         byte[] sha1Hash = sha1.digest(data.getBytes());
         System.out.println("SHA-1 hash computed.");
+
+        // Print SHA-1 hash
+        for (byte b : sha1Hash) {
+            System.out.printf("%02x", b);
+        }
     }
 }

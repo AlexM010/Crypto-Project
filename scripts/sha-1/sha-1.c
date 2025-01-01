@@ -11,6 +11,12 @@ void compute_sha1(const char *input) {
     SHA1_Final(digest, &ctx);             // Finalize hash
 
     printf("SHA-1 hash computed.\n");
+
+    //print digest
+    for (int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        printf("%02x", digest[i]);
+    }
+    printf("\n");
 }
 
 int main() {
