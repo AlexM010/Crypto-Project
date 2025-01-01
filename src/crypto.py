@@ -687,7 +687,7 @@ load_case_button = tk.Button(case_frame, text="Load Case", font=("Arial", 12, "b
 load_case_button.pack(side="left", padx=5)
 
 delete_case_button = tk.Button(case_frame, text="Delete Case", font=("Arial", 12, "bold"),
-                                bg="#FF5733", fg="white", command=lambda: print("Delete case"))
+                                bg="#FF5733", fg="white", command= delete_case)
 delete_case_button.pack(side="left", padx=5)
 
 # Database Management Panel
@@ -695,15 +695,15 @@ db_frame = tk.LabelFrame(main_tab, text="Database Management", font=("Arial", 12
 db_frame.pack(fill="x", padx=10, pady=5)
 
 export_db_button = tk.Button(db_frame, text="Export Database", font=("Arial", 12, "bold"),
-                              bg="#17A2B8", fg="white", command=lambda: print("Export DB"))
+                              bg="#17A2B8", fg="white", command= export_database)
 export_db_button.pack(side="left", padx=5)
 
 import_db_button = tk.Button(db_frame, text="Import Database", font=("Arial", 12, "bold"),
-                              bg="#28A745", fg="white", command=lambda: print("Import DB"))
+                              bg="#28A745", fg="white", command=import_database)
 import_db_button.pack(side="left", padx=5)
 
 clear_db_button = tk.Button(db_frame, text="Clear Database", font=("Arial", 12, "bold"),
-                             bg="#DC3545", fg="white", command=lambda: print("Clear DB"))
+                             bg="#DC3545", fg="white", command=clear_database )
 clear_db_button.pack(side="left", padx=5)
 
 # Log Management Panel
