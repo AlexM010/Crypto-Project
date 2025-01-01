@@ -6,6 +6,8 @@ from pymongo import MongoClient
 from datetime import datetime
 import json
 import webbrowser
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
@@ -275,7 +277,6 @@ vulnerability_patterns = {
         "patterns": {
             "Python": [
                 r"\bhashlib\.md5\b",
-                r"\bfrom\s+Crypto\.Hash\s+import\s+MD5\b"
             ],
             "C": [
                 r"\bMD5_Init\b",
@@ -293,7 +294,6 @@ vulnerability_patterns = {
         "patterns": {
             "Python": [
                 r"\bhashlib\.sha1\b",
-                r"\bfrom\s+Crypto\.Hash\s+import\s+SHA1\b"
             ],
             "C": [
                 r"\bSHA1_Init\b",
@@ -501,6 +501,7 @@ def create_case():
         folder = filedialog.askdirectory()
         if folder:
             scan_vulnerabilities(folder, case_name)
+    analyze_risks(case_name)  # Added to analyze risks after scanning
 
 def load_case():
     """Load and display a specific case."""
@@ -528,6 +529,7 @@ def load_case():
             log_panel.insert(tk.END, f"Directory: {case['directory']}\n")
             log_panel.insert(tk.END, f"Files Scanned: {case['files_scanned']}\n")
             log_panel.insert(tk.END, f"Vulnerabilities: {case['vulnerabilities']}\n")
+            analyze_risks(case_name)  # Added to analyze risks after loading
         else:
             log_panel.insert(tk.END, f"Case {case_name} not found.\n")
         load_window.destroy()
@@ -605,15 +607,75 @@ def open_help():
     """Open the help PDF."""
     webbrowser.open("docs.google.com/document/d/169w2Ff1sa_DZ_7yYJ6PitC7dVItpgvbq3WsB6DP80lc")
 
-# Tkinter GUI setup
+def analyze_risks(case_name):
+    """Analyze risks for a given case and display on the Risk Assessment tab."""
+    case = scans_collection.find_one({"scan_id": case_name})
+    if not case:
+        log_panel.insert(tk.END, f"[ERROR] Case {case_name} not found.\n")
+        return
+
+    # Clear previous content in the Risk Assessment Tab
+    for widget in risk_tab.winfo_children():
+        widget.destroy()
+
+    # Add a header
+    header_label = tk.Label(risk_tab, text=f"Risk Assessment - {case_name}", font=("Arial", 16, "bold"))
+    header_label.pack(pady=10)
+
+    # Add a summary
+    summary_frame = tk.Frame(risk_tab)
+    summary_frame.pack(pady=10)
+    summary_text = (
+        f"Total Files Scanned: {sum(case['files_scanned'].values())}\n"
+        f"Python Files: {case['files_scanned']['Python']}, Vulnerable: {case['vulnerable_files']['Python']}\n"
+        f"C Files: {case['files_scanned']['C']}, Vulnerable: {case['vulnerable_files']['C']}\n"
+        f"Java Files: {case['files_scanned']['Java']}, Vulnerable: {case['vulnerable_files']['Java']}\n"
+    )
+    summary_label = tk.Label(summary_frame, text=summary_text, font=("Arial", 12), justify="left")
+    summary_label.pack()
+
+    # Add a severity distribution chart
+    severities = {"Very High": 0, "High": 0, "Moderate": 0, "Low": 0, "Very Low": 0}
+    for vuln in case["vulnerabilities"]:
+        severities[vuln["severity"]] += 1
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.bar(severities.keys(), severities.values(), color=['red', 'orange', 'yellow', 'lightgreen', 'green'])
+    ax.set_title("Vulnerability Severity Distribution")
+    ax.set_xlabel("Severity")
+    ax.set_ylabel("Count")
+
+    canvas = FigureCanvasTkAgg(fig, master=risk_tab)
+    canvas.draw()
+    canvas.get_tk_widget().pack(pady=10)
+
+    # Add sorted vulnerabilities
+    sorted_vulns = sorted(case["vulnerabilities"], key=lambda v: v["severity"], reverse=True)
+    vulns_text = scrolledtext.ScrolledText(risk_tab, wrap=tk.WORD, font=("Consolas", 10), height=15, width=100)
+    for vuln in sorted_vulns:
+        vulns_text.insert(tk.END, f"{vuln['filename']} [{vuln['language']}]: {vuln['severity']} - {vuln['explanation']}\n")
+    vulns_text.pack(pady=10)
+    vulns_text.configure(state="disabled")
+
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
 root.geometry("1280x720")
 root.resizable(False, False)
 
+# Create notebook for tabs
+notebook = ttk.Notebook(root)
+notebook.pack(fill="both", expand=True)
 
-# Case Management Panel
-case_frame = tk.LabelFrame(root, text="Case Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+# Create the Main Tab
+main_tab = ttk.Frame(notebook)
+notebook.add(main_tab, text="Main")
+
+# Create the Risk Assessment Tab
+risk_tab = ttk.Frame(notebook)
+notebook.add(risk_tab, text="Risk Assessment")
+
+# Add widgets to the Main Tab
+case_frame = tk.LabelFrame(main_tab, text="Case Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 case_frame.pack(fill="x", padx=10, pady=5)
 
 create_case_button = tk.Button(case_frame, text="Create Case and Scan", font=("Arial", 12, "bold"),
@@ -625,28 +687,27 @@ load_case_button = tk.Button(case_frame, text="Load Case", font=("Arial", 12, "b
 load_case_button.pack(side="left", padx=5)
 
 delete_case_button = tk.Button(case_frame, text="Delete Case", font=("Arial", 12, "bold"),
-                                bg="#FF5733", fg="white", command=delete_case)
+                                bg="#FF5733", fg="white", command=lambda: print("Delete case"))
 delete_case_button.pack(side="left", padx=5)
 
 # Database Management Panel
-db_frame = tk.LabelFrame(root, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+db_frame = tk.LabelFrame(main_tab, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 db_frame.pack(fill="x", padx=10, pady=5)
 
-
-
 export_db_button = tk.Button(db_frame, text="Export Database", font=("Arial", 12, "bold"),
-                              bg="#17A2B8", fg="white", command=export_database)
+                              bg="#17A2B8", fg="white", command=lambda: print("Export DB"))
 export_db_button.pack(side="left", padx=5)
 
 import_db_button = tk.Button(db_frame, text="Import Database", font=("Arial", 12, "bold"),
-                              bg="#28A745", fg="white", command=import_database)
+                              bg="#28A745", fg="white", command=lambda: print("Import DB"))
 import_db_button.pack(side="left", padx=5)
 
 clear_db_button = tk.Button(db_frame, text="Clear Database", font=("Arial", 12, "bold"),
-                             bg="#DC3545", fg="white", command=clear_database)
+                             bg="#DC3545", fg="white", command=lambda: print("Clear DB"))
 clear_db_button.pack(side="left", padx=5)
+
 # Log Management Panel
-log_frame = tk.LabelFrame(root, text="Log Management", font=("Arial", 12, "bold"), padx=10, pady=10)
+log_frame = tk.LabelFrame(main_tab, text="Log Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 log_frame.pack(fill="x", padx=10, pady=5)
 
 clear_button = tk.Button(log_frame, text="Clear Logs", font=("Arial", 12, "bold"),
@@ -658,18 +719,18 @@ export_button = tk.Button(log_frame, text="Export Logs", font=("Arial", 12, "bol
 export_button.pack(side="left", padx=5)
 
 # Help Panel
-help_frame = tk.LabelFrame(root, text="Help", font=("Arial", 12, "bold"), padx=10, pady=10)
+help_frame = tk.LabelFrame(main_tab, text="Help", font=("Arial", 12, "bold"), padx=10, pady=10)
 help_frame.pack(fill="x", padx=10, pady=5)
 
 help_button = tk.Button(help_frame, text=" Help", font=("Arial", 12, "bold"),
                          bg="#6C757D", fg="white", command=open_help)
 help_button.pack(side="left", padx=5)
 
-# Log Panel for Output
-log_label = tk.Label(root, text="Log Panel:", font=("Arial", 12))
+# Log Panel
+log_label = tk.Label(main_tab, text="Log Panel:", font=("Arial", 12))
 log_label.pack(anchor="nw", padx=10, pady=5)
 
-log_panel = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Consolas", 10), height=20, width=150)
+log_panel = scrolledtext.ScrolledText(main_tab, wrap=tk.WORD, font=("Consolas", 10), height=20, width=150)
 log_panel.pack(padx=10, pady=5)
 
 root.mainloop()
