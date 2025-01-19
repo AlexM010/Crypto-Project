@@ -1,57 +1,81 @@
-import os
-import re
-import tkinter as tk
-from tkinter import filedialog, scrolledtext
 from pymongo import MongoClient
-from datetime import datetime
 
-replacement_map = {
-    "DES": "AES",
-    "3DES_1KEY": "AES",
-    "3DES_2KEY": "AES",
-    "3DES_3KEY": "AES",
-    "RC4": "AES",
-    "MD5": "SHA-256",
-    "SHA-1": "SHA-256",
-    "ECB_Mode": "CBC with random IV",
-    "RSA_512_1024": "RSA-2048",
-    "AES_128": "AES-256",
-    "AES_192": "AES-256",  
-}
+# Function to connect to MongoDB
+def connect_to_mongodb():
+    # Establishes connection to MongoDB and returns the collection object.
+    try:
+        client = MongoClient("mongodb://localhost:27017/")
+        db = client["cryptographic_inventory"]
+        scans_collection = db["scans"]
+        return client, scans_collection
+    except Exception as e:
+        print("Error connecting to MongoDB:", e)
+        exit(1)
 
+# Function to display scans (placeholder for actual implementation)
 def print_scans():
-    for scan in scans_collection.find():
-        print(scan["scan_id"], scan["date"])
-        
+    # Prints available scan IDs from the database.
+    print("Fetching available scan IDs...")
+    client, scans_collection = connect_to_mongodb()
+    for scan in scans_collection.find({}, {"scan_id": 1, "_id": 0}):
+        print(f"Scan ID: {scan['scan_id']}")
+
+# Function to display chosen scan (placeholder for actual implementation)
 def print_chosen_scan(scan):
-    # print the id
-    print("ID:", scan["scan_id"])
-    # print the date
-    print("Date:", scan["date"])
-    # print how many files scanned 
-    print("Files scanned:", len(scan["files_scanned"]))
-    # print the vulnerable files 
-    print("Vulnerable files:", len(scan["vulnerable_files"]))
+    """Prints detailed information about the selected scan in a readable format."""
+    print("\n--- Scan Details ---")
+    print(f"Scan ID: {scan['scan_id']}")
+    print(f"Date: {scan['date']}")
+    print(f"Directory: {scan['directory']}")
 
-# connect to mongodb
-client = MongoClient("mongodb://localhost:27017/")
-db = client["cryptographic_inventory"]
-scans_collection = db["scans"]
-    
-while True:
-    print_scans()
-    scan_id = input("Enter the scan id: ").strip()
-    scan = scans_collection.find_one({"scan_id": scan_id})
-    
-    if scan:
-        break
+    # Files scanned
+    print("\n--- Files Scanned ---")
+    for lang, count in scan['files_scanned'].items():
+        print(f"{lang}: {count}")
+
+    # Vulnerable files
+    print("\n--- Vulnerable Files ---")
+    for lang, count in scan['vulnerable_files'].items():
+        print(f"{lang}: {count}")
+
+    # Vulnerabilities
+    print("\n--- Vulnerabilities ---")
+    if scan['vulnerabilities']:
+        for idx, vulnerability in enumerate(scan['vulnerabilities'], start=1):
+            print(f"\nVulnerability {idx}:")
+            print(f"  Language: {vulnerability['language']}")
+            print(f"  Filename: {vulnerability['filename']}")
+            print(f"  Path: {vulnerability['path']}")
+            print(f"  Severity: {vulnerability['severity']}")
+            print(f"  Explanation: {vulnerability['explanation']}")
+
+            print("  Affected Lines:")
+            for line in vulnerability['lines']:
+                print(f"    Line {line['line_number']}: {line['content']}")
     else:
-        print("Invalid scan id")
+        print("No vulnerabilities found.")
 
-print("Scan id: ", scan["scan_id"], "Scan date:", scan["date"])
+    print("\n--- End of Report ---\n")
+   
 
-print_chosen_scan(scan)
-
-
+# Main function to execute the workflow
+def main():
+    client, scans_collection = connect_to_mongodb()
     
+    while True:
+        print_scans()
+        scan_id = input("Enter the scan id: ").strip()
+        scan = scans_collection.find_one({"scan_id": scan_id})
 
+        if scan:
+            break
+        else:
+            print("Invalid scan ID, please try again.")
+
+    print_chosen_scan(scan)
+    
+    client.close()
+
+# Entry point
+if __name__ == "__main__":
+    main()
