@@ -504,16 +504,16 @@ def create_case():
     analyze_risks(case_name)  # Added to analyze risks after scanning
 
 def load_case():
-    """Load and display a specific case."""
+    """Load a case and re-scan the folder."""
     case_names = [case["scan_id"] for case in scans_collection.find()]
     if not case_names:
         log_panel.insert(tk.END, "No cases available to load.\n")
         return
 
     load_window = tk.Toplevel(root)
-    load_window.title("Select Case to Load")
+    load_window.title("Select Case to Re-Scan")
 
-    label = tk.Label(load_window, text="Select a case:")
+    label = tk.Label(load_window, text="Select a case to re-scan:")
     label.pack(padx=10, pady=5)
 
     case_var = tk.StringVar(load_window)
@@ -524,17 +524,20 @@ def load_case():
         case_name = case_var.get()
         case = scans_collection.find_one({"scan_id": case_name})
         if case:
-            log_panel.insert(tk.END, f"\nCase Name: {case_name}\n")
-            log_panel.insert(tk.END, f"Date: {case['date']}\n")
-            log_panel.insert(tk.END, f"Directory: {case['directory']}\n")
-            log_panel.insert(tk.END, f"Files Scanned: {case['files_scanned']}\n")
-            log_panel.insert(tk.END, f"Vulnerabilities: {case['vulnerabilities']}\n")
-            analyze_risks(case_name)  # Added to analyze risks after loading
+            folder = case["directory"]  # Get the folder path from the case
+            log_panel.insert(tk.END, f"\nRe-scanning folder: {folder} for case: {case_name}\n")
+            log_panel.see(tk.END)
+
+            # Re-scan the folder
+            scan_vulnerabilities(folder, case_name)
+
+            # Update the Risk Assessment tab
+            analyze_risks(case_name)
         else:
             log_panel.insert(tk.END, f"Case {case_name} not found.\n")
         load_window.destroy()
 
-    load_button = tk.Button(load_window, text="Load", command=confirm_load)
+    load_button = tk.Button(load_window, text="Re-Scan", command=confirm_load)
     load_button.pack(pady=10)
 
 def delete_case():
@@ -618,44 +621,113 @@ def analyze_risks(case_name):
     for widget in risk_tab.winfo_children():
         widget.destroy()
 
-    # Add a header
-    header_label = tk.Label(risk_tab, text=f"Risk Assessment - {case_name}", font=("Arial", 16, "bold"))
-    header_label.pack(pady=10)
+    # Main container for the Risk Assessment tab
+    main_container = ttk.Frame(risk_tab)
+    main_container.pack(fill="both", expand=True, padx=10, pady=10)
 
-    # Add a summary
-    summary_frame = tk.Frame(risk_tab)
-    summary_frame.pack(pady=10)
-    summary_text = (
-        f"Total Files Scanned: {sum(case['files_scanned'].values())}\n"
-        f"Python Files: {case['files_scanned']['Python']}, Vulnerable: {case['vulnerable_files']['Python']}\n"
-        f"C Files: {case['files_scanned']['C']}, Vulnerable: {case['vulnerable_files']['C']}\n"
-        f"Java Files: {case['files_scanned']['Java']}, Vulnerable: {case['vulnerable_files']['Java']}\n"
-    )
-    summary_label = tk.Label(summary_frame, text=summary_text, font=("Arial", 12), justify="left")
-    summary_label.pack()
+    # Left pane: List of vulnerable files
+    left_pane = ttk.Frame(main_container)
+    left_pane.pack(side="left", fill="y", padx=10, pady=10)
 
-    # Add a severity distribution chart
+    # Right pane: Vulnerability details
+    right_pane = ttk.Frame(main_container)
+    right_pane.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+    # --------------------------
+    # Left Pane: File List with Vulnerabilities
+    # --------------------------
+    file_list_frame = ttk.LabelFrame(left_pane, text="Vulnerable Files", padding=10)
+    file_list_frame.pack(fill="both", expand=True)
+
+    # Treeview to show files and their vulnerabilities
+    file_tree = ttk.Treeview(file_list_frame, columns=("File", "Vulnerabilities"), show="headings", height=20)
+    file_tree.heading("File", text="File")
+    file_tree.heading("Vulnerabilities", text="Vulnerabilities")
+    file_tree.column("File", width=200)
+    file_tree.column("Vulnerabilities", width=150)
+    file_tree.pack(fill="both", expand=True)
+
+    # Populate the treeview with files and their vulnerabilities
+    file_vulns = {}
+    for vuln in case["vulnerabilities"]:
+        if vuln["filename"] not in file_vulns:
+            file_vulns[vuln["filename"]] = []
+        file_vulns[vuln["filename"]].append(vuln["vulnerability"])
+
+    for file, vulns in file_vulns.items():
+        file_tree.insert("", "end", values=(file, ", ".join(vulns)))
+
+    # --------------------------
+    # Right Pane: Vulnerability Details
+    # --------------------------
+    vuln_details_frame = ttk.LabelFrame(right_pane, text="Vulnerability Details", padding=10)
+    vuln_details_frame.pack(fill="both", expand=True)
+
+    # Text widget to display vulnerability details
+    vuln_text = scrolledtext.ScrolledText(vuln_details_frame, wrap=tk.WORD, font=("Consolas", 10), height=15, width=80)
+    vuln_text.pack(fill="both", expand=True)
+
+    # Function to update vulnerability details when a file is selected
+    def on_file_select(event):
+        selected_item = file_tree.selection()
+        if selected_item:
+            file_name = file_tree.item(selected_item, "values")[0]
+            vuln_text.delete(1.0, tk.END)
+            for vuln in case["vulnerabilities"]:
+                if vuln["filename"] == file_name:
+                    vuln_text.insert(tk.END, f"Vulnerability: {vuln['vulnerability']}\n")
+                    vuln_text.insert(tk.END, f"Severity: {vuln['severity']}\n")
+                    vuln_text.insert(tk.END, f"Explanation: {vuln['explanation']}\n")
+                    vuln_text.insert(tk.END, f"Lines:\n")
+                    for line in vuln["lines"]:
+                        vuln_text.insert(tk.END, f"  Line {line['line_number']}: {line['content']}\n")
+                    vuln_text.insert(tk.END, "-" * 50 + "\n")
+
+    # Bind file selection event
+    file_tree.bind("<<TreeviewSelect>>", on_file_select)
+
+    # --------------------------
+    # Advanced Stats and Visualizations
+    # --------------------------
+    stats_frame = ttk.LabelFrame(right_pane, text="Advanced Statistics", padding=10)
+    stats_frame.pack(fill="both", expand=True, pady=10)
+
+    # Severity distribution chart
     severities = {"Very High": 0, "High": 0, "Moderate": 0, "Low": 0, "Very Low": 0}
     for vuln in case["vulnerabilities"]:
         severities[vuln["severity"]] += 1
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.bar(severities.keys(), severities.values(), color=['red', 'orange', 'yellow', 'lightgreen', 'green'])
-    ax.set_title("Vulnerability Severity Distribution")
-    ax.set_xlabel("Severity")
-    ax.set_ylabel("Count")
+    fig1, ax1 = plt.subplots(figsize=(5, 3))
+    ax1.bar(severities.keys(), severities.values(), color=["red", "orange", "yellow", "lightgreen", "green"])
+    ax1.set_title("Severity Distribution")
+    ax1.set_ylabel("Count")
 
-    canvas = FigureCanvasTkAgg(fig, master=risk_tab)
-    canvas.draw()
-    canvas.get_tk_widget().pack(pady=10)
+    chart1 = FigureCanvasTkAgg(fig1, master=stats_frame)
+    chart1.get_tk_widget().pack(pady=10)
 
-    # Add sorted vulnerabilities
-    sorted_vulns = sorted(case["vulnerabilities"], key=lambda v: v["severity"], reverse=True)
-    vulns_text = scrolledtext.ScrolledText(risk_tab, wrap=tk.WORD, font=("Consolas", 10), height=15, width=100)
-    for vuln in sorted_vulns:
-        vulns_text.insert(tk.END, f"{vuln['filename']} [{vuln['language']}]: {vuln['severity']} - {vuln['explanation']}\n")
-    vulns_text.pack(pady=10)
-    vulns_text.configure(state="disabled")
+    # Language distribution chart
+    languages = {"Python": 0, "C": 0, "Java": 0}
+    for vuln in case["vulnerabilities"]:
+        languages[vuln["language"]] += 1
+
+    fig2, ax2 = plt.subplots(figsize=(5, 3))
+    ax2.bar(languages.keys(), languages.values(), color=["blue", "green", "purple"])
+    ax2.set_title("Language Distribution")
+    ax2.set_ylabel("Count")
+
+    chart2 = FigureCanvasTkAgg(fig2, master=stats_frame)
+    chart2.get_tk_widget().pack(pady=10)
+
+    # Risk score and recommendations
+    risk_score = sum(
+        {"Very High": 5, "High": 4, "Moderate": 3, "Low": 2, "Very Low": 1}[vuln["severity"]]
+        for vuln in case["vulnerabilities"]
+    )
+    risk_label = ttk.Label(stats_frame, text=f"Risk Score: {risk_score}", font=("Arial", 12, "bold"))
+    risk_label.pack(pady=10)
+
+    recommendations = ttk.Label(stats_frame, text="Recommendations:\n- Upgrade to AES-256.\n- Use SHA-3 instead of SHA-1.", justify="left")
+    recommendations.pack(pady=10)
 
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
