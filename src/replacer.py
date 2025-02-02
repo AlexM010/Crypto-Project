@@ -154,6 +154,9 @@ def replace_DES(weak_cipher, path, lines, language, patch_log, severity):
         content = re.sub(r'new\s+SecretKeySpec\s*\(\s*(\w+),\s*"DES"\)',
                          r'new SecretKeySpec(\1, "AES")',
                          content)
+        
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     else:
         print(f"[!] Language {language} not recognized for DES→AES-256 transformation.")
@@ -308,6 +311,9 @@ def replace_RC4(weak_cipher, path, lines, language, patch_log, severity):
         # So, we might leave a placeholder comment:
         content += "\n// NOTE: For RC4 -> AES transition, ensure a 256-bit key."
 
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
+
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
@@ -354,6 +360,9 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
             content = re.sub(r'(\"MD5\")', '"SHA-512"', content)
             content = content.replace("md5", "sha512")
 
+            new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+            content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
+
     elif weak_cipher == "SHA-1":
         # -------------- C --------------
         if language == "C":
@@ -372,6 +381,9 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
             content = re.sub(r'(\"SHA-1\")', '"SHA-512"', content)
             content = content.replace("sha1", "sha512")
 
+            new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+            content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
+
     elif weak_cipher == "SHA-256":
         # -------------- C --------------
         if language == "C":
@@ -389,6 +401,9 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
         elif language == "Java":
             content = content.replace("\"SHA-256\"", "\"SHA-512\"")
             content = content.replace("sha256", "sha512")
+
+            new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+            content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
@@ -419,6 +434,9 @@ def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
     if language == "Java":
         # Insert a comment that we need an IV
         content += "\n// NOTE: Make sure to define an IV: e.g. byte[] iv = new byte[16];\n"
+
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     elif language == "C":
         # In a more advanced approach, we might automatically inject a random IV array and pass it to EVP_EncryptInit_ex
@@ -483,6 +501,9 @@ def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
                    "// sr.nextBytes(iv);\n" \
                    "// IvParameterSpec ivSpec = new IvParameterSpec(iv);\n" \
                    "// cipher.init(..., ivSpec);\n"
+        
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
@@ -615,6 +636,9 @@ def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, se
         # Replace key references
         content += "\n// Ensure 32-byte key for AES-256.\n"
 
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
+
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
@@ -671,6 +695,9 @@ def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, sev
                    "// kpg.initialize(4096);\n" \
                    "// KeyPair kp = kpg.generateKeyPair();\n"
 
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
+
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
@@ -719,6 +746,9 @@ def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity)
         content = re.sub(r'kpg\.initialize\(\s*(512|1024|2048|3072)\s*\)',
                          'kpg.initialize(4096)',
                          content)
+        
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
@@ -754,6 +784,10 @@ def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
         content = re.sub(r'DH_generate_parameters_ex\s*\(\s*(\w+)\s*,\s*\d+\s*,\s*DH_GENERATOR_2\s*,\s*NULL\s*\);',
                          r'DH_generate_parameters_ex(\1, 8192, DH_GENERATOR_2, NULL);',
                          content)
+        
+    if language == "Java":
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
 
     patch_dir = ensure_output_dir(weak_cipher)
     patched_file = os.path.join(patch_dir, f"patched_{os.path.basename(path)}")
@@ -775,12 +809,17 @@ def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
         content = f.read()
         
-    if language == "C" or language == "Java":
+    if language == "C":
         # Add comment on the first line "MANUAL FIX REQUIRED"
         content = f"// MANUAL FIX REQUIRED\n" + content
     elif language == "Python":
         # Add comment on the first line "# MANUAL FIX REQUIRED"
         content = f"# MANUAL FIX REQUIRED\n" + content
+    elif language == "Java":
+        # Add comment on the first line
+        content = f"// MANUAL FIX REQUIRED\n" + content
+        new_class_name = f"patched_{os.path.basename(path).replace('.java', '')}"
+        content = content.replace(f"{os.path.basename(path).replace('.java', '')}", f"{new_class_name}")
     else: 
         print(f"[!] No manual fix available for {weak_cipher} in {language}.")
         
@@ -814,10 +853,7 @@ cipher_replacement_funcs = {
     "SHA-256": replace_MD5_SHA1_SHA256_with_SHA512,
 
     # ECB_Mode => CBC_Mode
-    "ECB_Mode": replace_ECB_Mode,
-
-    # CBC_Static_IV => random/dynamic IV
-    "CBC_Static_IV": fix_CBC_Static_IV,
+    "ECB_Mode": fix_manually,
 
     # AES-128, AES-192 => AES-256
     "AES-128": replace_AES_128_192_with_256,

@@ -10,7 +10,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 import subprocess 
+import csv
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
@@ -417,7 +419,7 @@ def _scan_vulnerabilities(folder, case_name):
     root.after(0, progress_bar.pack)  # Show Progress Bar
     root.after(0, progress_label.pack)  # Show Label
     root.after(0, progress_bar.start)  # Start animation
-
+    flag="patched_"
     safe_log_update(f"Scanning folder: {folder} for case: {case_name}")
 
     scan_id = case_name
@@ -441,7 +443,8 @@ def _scan_vulnerabilities(folder, case_name):
 
                 if file_path in found_files:
                     continue
-
+                if flag in file_path:
+                    continue #
                 found_files.add(file_path)
                 file_has_vulnerabilities = False
 
@@ -662,7 +665,7 @@ def export_logs():
 
 def open_help():
     """Open the help PDF."""
-    webbrowser.open("docs.google.com/document/d/169w2Ff1sa_DZ_7yYJ6PitC7dVItpgvbq3WsB6DP80lc")
+    webbrowser.open("https://docs.google.com/document/d/1dW6ZVhTDQWCiXZcZdARQ6fzvTzn4-HL5elhtAQ4uTII")
 
 def analyze_risks(case_name):
     """Analyze risks for a given case and display on the Risk Assessment tab."""
@@ -813,7 +816,7 @@ def analyze_risks(case_name):
         {"Very High": 5, "High": 4, "Moderate": 3, "Low": 2, "Very Low": 1}[vuln["severity"]]
         for vuln in case["vulnerabilities"]
     )
-    risk_label = ttk.Label(stats_frame, text=f"Risk Score: {risk_score}/100", font=("Arial", 12, "bold"))
+    risk_label = ttk.Label(stats_frame, text=f"Risk Score: {risk_score}", font=("Arial", 12, "bold"))
     risk_label.pack(pady=10)
 
     # Risk level explanation
@@ -828,60 +831,286 @@ def analyze_risks(case_name):
     explanation_label = ttk.Label(stats_frame, text=risk_explanation, justify="left")
     explanation_label.pack(pady=10)
 
-def run_replacer():
-    """
-    Opens a Toplevel window listing all scan_id's.
-    User selects one, then we run replacer.py with that scan_id.
-    """
-    # 1) Gather all scan_ids from the database
-    scan_ids = [doc["scan_id"] for doc in scans_collection.find({}, {"scan_id": 1, "_id": 0})]
+def create_simulator_tab():
+    main_frame = ttk.Frame(simulator_tab)
+    main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-    # If no scans exist, log a message and exit
-    if not scan_ids:
-        log_panel.insert(tk.END, "No scans available to patch.\n")
-        return
+    # Define severity order for sorting
+    severity_order = ["Very High", "High", "Moderate", "Low", "Very Low"]
 
-    # 2) Create a new Toplevel window to select a scan ID
-    replacer_window = tk.Toplevel(root)
-    replacer_window.title("Select a Scan ID for Replacer")
-
-    label = tk.Label(replacer_window, text="Select a scan_id to patch:")
-    label.pack(padx=10, pady=5)
-
-    scan_var = tk.StringVar(replacer_window)
-    combo_scan = ttk.Combobox(
-        replacer_window,
-        textvariable=scan_var,
-        values=scan_ids,
-        state="readonly"
-    )
-    combo_scan.pack(padx=10, pady=5)
-
-    # Status or error messages
-    message_label = tk.Label(replacer_window, text="", fg="red")
-    message_label.pack(padx=10, pady=5)
-
-    def confirm_replacer():
-        chosen_id = scan_var.get().strip()
-        if not chosen_id:
-            message_label.config(text="Please select a scan_id.", fg="red")
+    # Custom sorting function
+    def treeview_sort_column(tv, col, reverse):
+        l = [(tv.set(k, col), k) for k in tv.get_children('')]
+        if col == "severity":
+            l.sort(key=lambda x: severity_order.index(x[0]), reverse=reverse)
+        else:
+            try:
+                l.sort(key=lambda t: t[0].lower(), reverse=reverse)
+            except:
+                l.sort(reverse=reverse)
+        for index, (val, k) in enumerate(l):
+            tv.move(k, '', index)
+        tv.heading(col, command=lambda: treeview_sort_column(tv, col, not reverse))
+    # Create StringVar and attach it to the main window
+    case_var = tk.StringVar(root)
+    
+    # Left panel - Controls
+    control_frame = ttk.LabelFrame(main_frame, text="Simulation Controls", padding=10)
+    control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
+    def export_csv():
+        case_name = case_var.get()
+        if not case_name:
+            tk.messagebox.showwarning("No Case Selected", "Please select a case first!")
             return
 
-        # 3) Launch replacer.py with the chosen scan_id
-        script_path = os.path.join(os.path.dirname(__file__), "replacer.py")
-        subprocess.run(["python", script_path, chosen_id])
+        # Access the 'patched' collection
+        client = MongoClient("mongodb://localhost:27017/")
+        db = client["cryptographic_inventory"]
+        patched_data = db.patched.find_one({"scan_id": case_name})
+        
+        if not patched_data or "updates" not in patched_data:
+            tk.messagebox.showwarning("No Data", "No simulation data found for this case!")
+            return
 
-        # Optionally close the Toplevel window after running
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            title="Save CSV"
+        )
+        if not file_path:
+            return  # User canceled
 
-    # 4) Button to confirm launching replacer.py
-    btn_run = tk.Button(replacer_window, text="Run Replacer", command=confirm_replacer)
-    btn_run.pack(padx=10, pady=10)
+        # Write CSV file
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                "File",
+                "Path",
+                "Vulnerability",
+                "Severity",
+                "Fix Type",
+                "Status",
+                "Affected Lines"
+            ])
+            # Loop through all fixes/updates
+            for update in patched_data["updates"]:
+                fix_type = "Automatic" if update["method"] == "AUTO" else "Manual"
+                status = "Fixed" if fix_type == "Automatic" else "Needs Attention"
+                
+                # Combine line details into a single string
+                lines_content = []
+                for line_info in update.get("lines", []):
+                    line_str = f"Line {line_info.get('line_number','?')}: {line_info.get('content','')}"
+                    lines_content.append(line_str)
+                joined_lines = " | ".join(lines_content)
+
+                writer.writerow([
+                    update.get("file_name", "Unknown"),
+                    update.get("file_path", "Unknown"),
+                    update["transition_info"].split("»")[0].strip(),  # e.g. "DES" from "DES » AES" 
+                    update.get("severity", "Unknown"),
+                    fix_type,
+                    status,
+                    joined_lines
+                ])
+
+        tk.messagebox.showinfo("Export Complete", f"CSV exported to:\n{file_path}")
+    export_csv_button = ttk.Button(control_frame, text="Export CSV", command=export_csv)  # <-- Add this button
+    export_csv_button.pack(pady=5)  # <-- Pack it so it appears in the UI
+    
+
+    # Case selection
+    ttk.Label(control_frame, text="Select Case:").pack(anchor=tk.W)
+    case_combo = ttk.Combobox(control_frame, textvariable=case_var, state="readonly")
+    case_combo.pack(fill=tk.X, pady=5)
+
+    # Refresh cases button
+    def refresh_cases():
+        cases = [case["scan_id"] for case in scans_collection.find()]
+        case_combo["values"] = cases
+    ttk.Button(control_frame, text="Refresh Cases", command=refresh_cases).pack(pady=5)
+
+    # Run simulation button - FIXED to use the StringVar properly
+    ttk.Button(control_frame, text="Run Simulation", 
+              command=lambda: run_simulation(case_var.get())).pack(pady=10)
+
+    # Statistics frame
+    stats_frame = ttk.LabelFrame(control_frame, text="Simulation Statistics", padding=10)
+    stats_frame.pack(fill=tk.X, pady=5)
+    
+    stats_labels = {
+        "total_vulns": ttk.Label(stats_frame, text="Total Vulnerabilities: 0"),
+        "auto_fixed": ttk.Label(stats_frame, text="Auto Fixed: 0"),
+        "manual_fixed": ttk.Label(stats_frame, text="Manual Fixes Needed: 0"),
+        "compliance": ttk.Label(stats_frame, text="Compliance Score: 0%")
+    }
+    for lbl in stats_labels.values():
+        lbl.pack(anchor=tk.W)
+
+    # Right panel - Results
+    results_frame = ttk.LabelFrame(main_frame, text="Simulation Results", padding=10)
+    results_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    tree = ttk.Treeview(results_frame, columns=("file", "vuln", "severity", "type", "status"), show="headings")
+    tree.heading("file", text="File", command=lambda: treeview_sort_column(tree, "file", False))
+    tree.heading("vuln", text="Vulnerability", command=lambda: treeview_sort_column(tree, "vuln", False))
+    tree.heading("severity", text="Severity", command=lambda: treeview_sort_column(tree, "severity", False))
+    tree.heading("type", text="Fix Type", command=lambda: treeview_sort_column(tree, "type", False))
+    tree.heading("status", text="Status", command=lambda: treeview_sort_column(tree, "status", False))
+    tree.column("file", width=200)
+    tree.column("vuln", width=150)
+    tree.column("severity", width= 100)
+    tree.column("type", width=100)
+    tree.column("status", width=100)
+    tree.pack(fill=tk.BOTH, expand=True)
+
+    # Details panel
+    details_text = scrolledtext.ScrolledText(results_frame, height=10, wrap=tk.WORD)
+    details_text.pack(fill=tk.BOTH, expand=True)
+
+    def update_stats(patched_data):
+        total = len(patched_data["updates"])
+        auto = sum(1 for u in patched_data["updates"] if u["method"] == "AUTO")
+        manual = total - auto
+        
+        stats_labels["total_vulns"].config(text=f"Total Vulnerabilities: {total}")
+        stats_labels["auto_fixed"].config(text=f"Auto Fixed: {auto}")
+        stats_labels["manual_fixed"].config(text=f"Manual Fixes Needed: {manual}")
+        stats_labels["compliance"].config(text=f"Compliance Score: {int((auto/total)*100)}%")
+
+    def show_details(event):
+        """Display detailed information about the selected vulnerability from the patched table."""
+        selected_item = tree.selection()
+        if not selected_item:
+            return
+
+        item = tree.item(selected_item[0], "values")
+        
+        file_name = item[0]   # File where vulnerability was found
+        vuln_name = item[1]   # Name of the vulnerability
+        severity = item[2]    # Severity level
+        fix_type = item[3]    # Automatic or Manual Fix
+        status = item[4]      # Whether it was fixed or needs attention
+
+        # Retrieve details from the patched table
+        case_name = case_var.get()
+        
+        patched_data = db.patched.find_one({"scan_id": case_name})  # Fetch from patched collection
+
+        detailed_info = None
+        if patched_data and "updates" in patched_data:  # Ensure "updates" exists
+            for vuln in patched_data["updates"]:
+                if vuln.get("file_name") == file_name and vuln.get("transition_info", "").startswith(vuln_name):
+                    detailed_info = vuln
+                    break
+
+        details_text.delete(1.0, tk.END)
+        details_text.insert(tk.END, f"📁 File: {file_name}\n")
+        details_text.insert(tk.END, f"📌 Path: {detailed_info.get('file_path', 'Unknown') if detailed_info else 'Unknown'}\n")
+        details_text.insert(tk.END, f"⚠️ Vulnerability: {vuln_name}\n")
+        details_text.insert(tk.END, f"🔥 Severity: {severity}\n")
+        details_text.insert(tk.END, f"🛠️Recommended Fix: {detailed_info.get('change', 'N/A') if detailed_info else 'N/A'}\n")
+        details_text.insert(tk.END, f"🔄 Fix Type: {fix_type}\n")
+        details_text.insert(tk.END, f"✅ Status: {status}\n\n")
+
+        # Show affected lines
+        details_text.insert(tk.END, f"📝 **Affected Lines:**\n")
+        if detailed_info and "lines" in detailed_info:
+            for line in detailed_info["lines"]:
+                details_text.insert(tk.END, f"   🔹 Line {line.get('line_number', 'Unknown')}: {line.get('content', 'No content')}\n")
+        else:
+            details_text.insert(tk.END, "   No detailed line information available.\n")
+
+        # If the file was patched, display the patched file path
+        if detailed_info and detailed_info.get("patched_file"):
+            details_text.insert(tk.END, f"\n✅ **Patched File:** {detailed_info['patched_file']}\n")
+
+        details_text.insert(tk.END, "-" * 80 + "\n")
+        
+
+
+
+
+
+    tree.bind("<<TreeviewSelect>>", show_details)
+    
+
+    def run_simulation(case_name):
+        if not case_name:
+            tk.messagebox.showwarning("No Case Selected", "Please select a case first!")
+            return
+        for widget in stats_frame.winfo_children():
+            if isinstance(widget, tk.Canvas):
+                widget.destroy()
+        # Clear previous results
+        tree.delete(*tree.get_children())
+        
+        # Clear existing patched data for this case
+        client = MongoClient("mongodb://localhost:27017/")
+        db = client["cryptographic_inventory"]
+        db.patched.delete_many({"scan_id": case_name})  # Add this line
+        
+        # Run the replacer with the selected case
+        run_replacer(case_name)
+        
+        # Get patched data from DB
+        patched_data = db.patched.find_one({"scan_id": case_name})
+        sorted_updates = sorted(
+            patched_data["updates"],
+            key=lambda x: severity_order.index(x["severity"])
+        )
+        if not patched_data:
+            details_text.insert(tk.END, "No simulation data found for this case!")
+            return
+         # Populate treeview with sorted results
+        for update in sorted_updates:
+            fix_type = "Automatic" if update["method"] == "AUTO" else "Manual"
+            status = "Fixed" if fix_type == "Automatic" else "Needs Attention"
+            tree.insert("", tk.END, values=(
+                update["file_name"],
+                update["transition_info"].split("»")[0].strip(),
+                update["severity"],  # Add severity value
+                fix_type,
+                status
+            ))
+        
+        
+        update_stats(patched_data)
+    # Clear existing plots from stats_frame
+        
+        # Add visualizations
+        fig = plt.figure(figsize=(5,3))
+        ax = fig.add_subplot(111)
+        fix_types = ["Automatic", "Manual"]
+        counts = [
+            sum(1 for u in patched_data["updates"] if u["method"] == "AUTO"),
+            sum(1 for u in patched_data["updates"] if u["method"] == "MANUAL")
+        ]
+        ax.bar(fix_types, counts, color=["#4CAF50", "#FF9800"])
+        ax.set_title("Fix Distribution")
+        # Embed plot in GUI
+
+
+        canvas = FigureCanvasTkAgg(fig, master=stats_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    refresh_cases()
+
+def run_replacer(case_name):
+    """
+    Modified to use the case name directly
+    """
+    if not case_name:
+        return
+        
+    script_path = os.path.join(os.path.dirname(__file__), "replacer.py")
+    subprocess.run(["python3", str(script_path), case_name])
 
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
-root.geometry("1400x800")
+root.geometry("1600x900")
 root.resizable(False, False)
-
 # Create notebook for tabs
 notebook = ttk.Notebook(root)
 notebook.pack(fill="both", expand=True)
@@ -893,6 +1122,10 @@ notebook.add(main_tab, text="Main")
 # Create the Risk Assessment Tab
 risk_tab = ttk.Frame(notebook)
 notebook.add(risk_tab, text="Risk Assessment")
+
+simulator_tab = ttk.Frame(notebook)
+notebook.add(simulator_tab, text="Simulator")
+create_simulator_tab()
 
 # Add widgets to the Main Tab
 case_frame = tk.LabelFrame(main_tab, text="Case Management", font=("Arial", 12, "bold"), padx=10, pady=10)
@@ -912,9 +1145,7 @@ delete_case_button.pack(side="left", padx=5)
 summary_button = tk.Button(case_frame, text="Show Summary Of Cases", font=("Arial", 12, "bold"),
                            bg="#6C757D", fg="white", command=show_summary_of_cases)
 summary_button.pack(side="left", padx=5)
-replace_case_button = tk.Button(case_frame, text="Replace Vulnerabilities", font=("Arial", 12, "bold"),
-                                bg="#FF5733", fg="white", command= run_replacer)
-replace_case_button.pack(side="left", padx=5)
+
 # Database Management Panel
 db_frame = tk.LabelFrame(main_tab, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 db_frame.pack(fill="x", padx=10, pady=5)
