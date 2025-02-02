@@ -8,6 +8,7 @@ import json
 import webbrowser
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import subprocess 
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
@@ -810,6 +811,55 @@ def analyze_risks(case_name):
     explanation_label = ttk.Label(stats_frame, text=risk_explanation, justify="left")
     explanation_label.pack(pady=10)
 
+def run_replacer():
+    """
+    Opens a Toplevel window listing all scan_id's.
+    User selects one, then we run replacer.py with that scan_id.
+    """
+    # 1) Gather all scan_ids from the database
+    scan_ids = [doc["scan_id"] for doc in scans_collection.find({}, {"scan_id": 1, "_id": 0})]
+
+    # If no scans exist, log a message and exit
+    if not scan_ids:
+        log_panel.insert(tk.END, "No scans available to patch.\n")
+        return
+
+    # 2) Create a new Toplevel window to select a scan ID
+    replacer_window = tk.Toplevel(root)
+    replacer_window.title("Select a Scan ID for Replacer")
+
+    label = tk.Label(replacer_window, text="Select a scan_id to patch:")
+    label.pack(padx=10, pady=5)
+
+    scan_var = tk.StringVar(replacer_window)
+    combo_scan = ttk.Combobox(
+        replacer_window,
+        textvariable=scan_var,
+        values=scan_ids,
+        state="readonly"
+    )
+    combo_scan.pack(padx=10, pady=5)
+
+    # Status or error messages
+    message_label = tk.Label(replacer_window, text="", fg="red")
+    message_label.pack(padx=10, pady=5)
+
+    def confirm_replacer():
+        chosen_id = scan_var.get().strip()
+        if not chosen_id:
+            message_label.config(text="Please select a scan_id.", fg="red")
+            return
+
+        # 3) Launch replacer.py with the chosen scan_id
+        script_path = os.path.join(os.path.dirname(__file__), "replacer.py")
+        subprocess.run(["python", script_path, chosen_id])
+
+        # Optionally close the Toplevel window after running
+
+    # 4) Button to confirm launching replacer.py
+    btn_run = tk.Button(replacer_window, text="Run Replacer", command=confirm_replacer)
+    btn_run.pack(padx=10, pady=10)
+
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
 root.geometry("1280x720")
@@ -845,6 +895,9 @@ delete_case_button.pack(side="left", padx=5)
 summary_button = tk.Button(case_frame, text="Show Summary Of Cases", font=("Arial", 12, "bold"),
                            bg="#6C757D", fg="white", command=show_summary_of_cases)
 summary_button.pack(side="left", padx=5)
+replace_case_button = tk.Button(case_frame, text="Replace Vulnerabilities", font=("Arial", 12, "bold"),
+                                bg="#FF5733", fg="white", command= run_replacer)
+replace_case_button.pack(side="left", padx=5)
 # Database Management Panel
 db_frame = tk.LabelFrame(main_tab, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 db_frame.pack(fill="x", padx=10, pady=5)
