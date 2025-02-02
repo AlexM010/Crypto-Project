@@ -42,7 +42,7 @@ def ensure_output_dir(vulnerability):
         os.makedirs(patch_dir)
     return patch_dir
 
-def set_patch_log(file_path, file_name, transition_info, severity, change, patched_file, lines):
+def set_patch_log(file_path, file_name, transition_info, severity, change, patched_file, lines, method):
     """
     Set the patch log for each file.
     """
@@ -53,7 +53,8 @@ def set_patch_log(file_path, file_name, transition_info, severity, change, patch
         "severity": severity,
         "change": change,
         "patched_file": patched_file,
-        "lines": lines
+        "lines": lines,
+        "method": method
     }
     return patch_log
 
@@ -71,7 +72,7 @@ def replace_DES(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", "", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -163,7 +164,7 @@ def replace_DES(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 
 def replace_3DES(weak_cipher, path, lines, language, patch_log, severity):
@@ -175,7 +176,7 @@ def replace_3DES(weak_cipher, path, lines, language, patch_log, severity):
 
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -253,7 +254,7 @@ def replace_3DES(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
     
 
@@ -264,7 +265,7 @@ def replace_RC4(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -312,7 +313,7 @@ def replace_RC4(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 
 
@@ -323,7 +324,7 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -394,7 +395,7 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 
 def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
@@ -404,7 +405,7 @@ def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -436,7 +437,7 @@ def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 
 def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
@@ -447,7 +448,7 @@ def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -488,7 +489,7 @@ def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -497,7 +498,7 @@ def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log, 
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -569,7 +570,7 @@ def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log, 
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -578,7 +579,7 @@ def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, se
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -619,7 +620,7 @@ def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, se
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -628,7 +629,7 @@ def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, sev
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -675,7 +676,7 @@ def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, sev
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -685,7 +686,7 @@ def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity)
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -724,7 +725,7 @@ def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity)
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -734,7 +735,7 @@ def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
     
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -759,7 +760,7 @@ def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines, "AUTO"))
 
 def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -768,7 +769,7 @@ def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
     
     if not os.path.isfile(path):
-        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}""", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -788,7 +789,7 @@ def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
     
-    patch_log.append(set_patch_log(path, os.path.basename(path), weak_cipher, severity, f"[!] No automated fix for {weak_cipher}. Manual fix required.", "", lines))
+    patch_log.append(set_patch_log(path, os.path.basename(path), weak_cipher, severity, f"[!] No automated fix for {weak_cipher}. Manual fix required.", "", lines, "MANUAL"))
     
     
 # =============================================================================
