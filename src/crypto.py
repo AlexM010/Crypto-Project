@@ -6,6 +6,8 @@ from pymongo import MongoClient
 from datetime import datetime
 import json
 import webbrowser
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import subprocess 
@@ -395,45 +397,52 @@ def scan_for_vulnerability(file_path, patterns):
         log_panel.insert(tk.END, f"[ERROR] Could not read file {file_path}: {e}\n")
         log_panel.see(tk.END)
     return findings
+import threading
 
 def scan_vulnerabilities(folder, case_name):
+    """Run the scan in a separate thread to keep the GUI responsive."""
+    thread = threading.Thread(target=_scan_vulnerabilities, args=(folder, case_name))
+    thread.start()
+    
+def _scan_vulnerabilities(folder, case_name):
     """Scan folder for vulnerabilities and save findings in a specific case."""
-    log_panel.insert(tk.END, f"Scanning folder: {folder} for case: {case_name}\n")
-    log_panel.see(tk.END)
 
-    # Metadata for the scan
+    def safe_log_update(message):
+        """Safely update log panel from the main thread."""
+        root.after(0, lambda: log_panel.insert(tk.END, message + "\n"))
+        root.after(0, log_panel.see, tk.END)
+
+    # Start Progress Bar (Show & Start Animation)
+    root.after(0, progress_frame.pack, {"pady": 5})  # Show Frame
+    root.after(0, progress_bar.pack)  # Show Progress Bar
+    root.after(0, progress_label.pack)  # Show Label
+    root.after(0, progress_bar.start)  # Start animation
+
+    safe_log_update(f"Scanning folder: {folder} for case: {case_name}")
+
     scan_id = case_name
     date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_counts = {"Python": 0, "C": 0, "Java": 0}
     vulnerable_counts = {"Python": 0, "C": 0, "Java": 0}
-    total_files = 0
+    total_files = sum(len(files) for _, _, files in os.walk(folder))
     total_vulnerable_files = 0
     vulnerabilities = []
-    found_files = set()  # Track files that have been scanned
-    vulnerable_files = set()  # Track files that contain vulnerabilities
+    found_files = set()
+    vulnerable_files = set()
 
-    for root, _, files in os.walk(folder):
+    for root_dir, _, files in os.walk(folder):
         for file in files:
             ext = os.path.splitext(file)[1]
-            lang = None
-            if ext == ".py":
-                lang = "Python"
-            elif ext == ".c":
-                lang = "C"
-            elif ext == ".java":
-                lang = "Java"
+            lang = "Python" if ext == ".py" else "C" if ext == ".c" else "Java" if ext == ".java" else None
 
             if lang:
                 file_counts[lang] += 1
-                total_files += 1
-                file_path = os.path.join(root, file)
+                file_path = os.path.join(root_dir, file)
 
                 if file_path in found_files:
                     continue
 
-                found_files.add(file_path)  # Mark the file as scanned
-
-                # Track if the file has any vulnerabilities
+                found_files.add(file_path)
                 file_has_vulnerabilities = False
 
                 for vuln_name, vuln_details in vulnerability_patterns.items():
@@ -458,15 +467,14 @@ def scan_vulnerabilities(folder, case_name):
                             })
 
                         vulnerabilities.append(merged_vulnerability)
-                        log_panel.insert(tk.END, f"[INFO] {vuln_name} vulnerability found in {file_path}\n")
-                        log_panel.see(tk.END)
+                        safe_log_update(f"[INFO] {vuln_name} vulnerability found in {file_path}")
 
-                # Update vulnerable_counts and total_vulnerable_files only once per file
                 if file_has_vulnerabilities:
                     vulnerable_files.add(file_path)
                     vulnerable_counts[lang] += 1
                     total_vulnerable_files += 1
 
+    # Save scan results
     scan_document = {
         "scan_id": scan_id,
         "date": date,
@@ -477,15 +485,25 @@ def scan_vulnerabilities(folder, case_name):
     }
     scans_collection.insert_one(scan_document)
 
-    log_panel.insert(tk.END, f"\nScan Statistics:\n")
-    log_panel.insert(tk.END, f"Case Name: {case_name}\n")
-    log_panel.insert(tk.END, f"Total files scanned: {total_files}\n")
+    safe_log_update("\nScan Statistics:")
+    safe_log_update(f"Case Name: {case_name}")
+    safe_log_update(f"Total files scanned: {total_files}")
     for lang, count in file_counts.items():
-        log_panel.insert(tk.END, f"{lang} files: {count}\n")
-    log_panel.insert(tk.END, f"Total vulnerable files: {total_vulnerable_files}\n")
+        safe_log_update(f"{lang} files: {count}")
+    safe_log_update(f"Total vulnerable files: {total_vulnerable_files}")
     for lang, count in vulnerable_counts.items():
-        log_panel.insert(tk.END, f"Vulnerable {lang} files: {count}\n")
-    log_panel.see(tk.END)
+        safe_log_update(f"Vulnerable {lang} files: {count}")
+
+    # Stop & Hide Progress Bar, Then Print "READY TO SCAN"
+    root.after(0, progress_bar.stop)  # Stop animation
+    root.after(0, progress_frame.pack_forget)  # Hide entire frame
+    safe_log_update("\n✅ READY TO SCAN\n")
+
+    # Analyze risks after scanning
+    analyze_risks(case_name)
+
+
+
 
 def create_case():
     """Create a new case and perform a scan."""
@@ -513,7 +531,6 @@ def create_case():
     folder = filedialog.askdirectory()
     if folder:
         scan_vulnerabilities(folder, case_name)
-        analyze_risks(case_name)  # Analyze risks after scanning
 def load_case():
     """Load a case and re-scan the folder."""
     case_names = [case["scan_id"] for case in scans_collection.find()]
@@ -862,7 +879,7 @@ def run_replacer():
 
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
-root.geometry("1280x720")
+root.geometry("1400x800")
 root.resizable(False, False)
 
 # Create notebook for tabs
@@ -934,11 +951,23 @@ help_button = tk.Button(help_frame, text=" Help", font=("Arial", 12, "bold"),
                          bg="#6C757D", fg="white", command=open_help)
 help_button.pack(side="left", padx=5)
 
+
+
 # Log Panel
 log_label = tk.Label(main_tab, text="Log Panel:", font=("Arial", 12))
 log_label.pack(anchor="nw", padx=10, pady=5)
 
 log_panel = scrolledtext.ScrolledText(main_tab, wrap=tk.WORD, font=("Consolas", 10), height=20, width=150)
 log_panel.pack(padx=10, pady=5)
+
+# Progress Bar Panel (Indeterminate Progress, Smaller & Disappears)
+# Progress Bar Panel (Indeterminate Progress)
+progress_frame = tk.LabelFrame(main_tab, text="Scanning Status", font=("Arial", 12, "bold"), padx=10, pady=10)
+progress_frame.pack(fill="x", padx=10, pady=5)
+progress_frame = tk.Frame(main_tab, padx=5, pady=5)
+progress_bar = ttk.Progressbar(progress_frame, mode="indeterminate", length=200)  # Smaller Bar
+progress_label = tk.Label(progress_frame, text="Scanning...", font=("Arial", 10, "bold"), fg="black")
+
+
 
 root.mainloop()
