@@ -3,6 +3,7 @@ import os
 import re
 from pymongo import MongoClient
 import sys
+from datetime import datetime
 
 # -- Dictionary that maps your vulnerabilities to recommended replacements
 cipher_replacement = {
@@ -41,20 +42,34 @@ def ensure_output_dir(vulnerability):
         os.makedirs(patch_dir)
     return patch_dir
 
+def set_patch_log(file_path, file_name, transition_info, change, patched_file):
+    """
+    Set the patch log for each file.
+    """
+    patch_log = {
+        "file_path": file_path,
+        "file_name": file_name,
+        "transition_info": transition_info,
+        "change": change,
+        "patched_file": patched_file
+    }
+    return patch_log
+
+
 
 # =============================================================================
 #               INDIVIDUAL FIX FUNCTIONS FOR EACH VULNERABILITY
 # =============================================================================
 
-def replace_DES(weak_cipher, path, lines, language):
+def replace_DES(weak_cipher, path, lines, language, patch_log):
     """
     Replace DES references with AES-256 references
     in a more thorough way for C, Python, and Java.
     """
-    print(f"[+] Patching {weak_cipher} → AES-256 in {path} (lang={language})")
+    transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
 
     if not os.path.isfile(path):
-        print(f"  [!] File not found: {path}")
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, f"  [!] File not found: {path}", ""))
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -146,18 +161,19 @@ def replace_DES(weak_cipher, path, lines, language):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    print(f"  [*] Patched file saved to: {patched_file}")
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
 
 
-def replace_3DES(weak_cipher, path, lines, language):
+def replace_3DES(weak_cipher, path, lines, language, patch_log):
     """
     Replace 3DES references with AES-256 in a more thorough way.
     This function handles 3DES_1KEY, 3DES_2KEY, 3DES_3KEY.
     """
-    print(f"[+] Patching {weak_cipher} → AES-256 in {path} (lang={language})")
+    transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
+
 
     if not os.path.isfile(path):
-        print(f"  [!] File not found: {path}")
+        set_patch_log(path, os.path.basename(path), transition_str, f"  [!] File not found: {path}", "")
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -235,17 +251,30 @@ def replace_3DES(weak_cipher, path, lines, language):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    print(f"  [*] Patched file saved to: {patched_file}")
+    set_patch_log(path, os.path.basename(path), transition_str, f"[+] Patching {weak_cipher} » {cipher_replacement(weak_cipher)} in {language}", patched_file)
 
+    
 
-def replace_RC4(weak_cipher, path, lines, language):
+def replace_RC4(weak_cipher, path, lines, language, patch_log):
     """
     Replace RC4 references with AES-256 in C, Python, Java.
     """
-    print(f"[+] Patching RC4 → AES-256 in {path} (lang={language})")
+    transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
+    
+    patch_log.append({
+        "file_path": path,
+        "file_name": os.path.basename(path),
+        "transition_info": transition_str,
+        "change": f"[+] Patching {transition_str} in {path} (lang={language})"
+    })
 
     if not os.path.isfile(path):
-        print(f"  [!] File not found: {path}")
+        patch_log.append({
+            "file_path": path,
+            "file_name": os.path.basename(path),
+            "transition_info": transition_str,
+            "change": f"  [!] File not found: {path}"
+        })
         return
 
     with open(path, 'r', encoding="utf-8", errors="ignore") as f:
@@ -293,10 +322,16 @@ def replace_RC4(weak_cipher, path, lines, language):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    print(f"  [*] Patched file saved to: {patched_file}")
+    patch_log.append({
+        "file": os.path.basename(path),
+        "language": language,
+        "transition_info": transition_str,
+        "change": f"[*] Patched file saved to: {patched_file}"
+    })
 
 
-def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language):
+
+def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patch_log):
     """
     Handles MD5, SHA-1, and SHA-256 → SHA-512 replacements in a more thorough manner.
     """
@@ -377,7 +412,7 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def replace_ECB_Mode(weak_cipher, path, lines, language):
+def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log):
     """
     Replaces 'ECB' references with 'CBC' usage. This is partly naive, but tries to add an IV for CBC.
     """
@@ -419,7 +454,7 @@ def replace_ECB_Mode(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def fix_CBC_Static_IV(weak_cipher, path, lines, language):
+def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log):
     """
     We still switch to random or dynamic IV in CBC. 
     We'll put in a placeholder for a random IV in each language.
@@ -471,7 +506,7 @@ def fix_CBC_Static_IV(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def replace_AES_128_192_with_256(weak_cipher, path, lines, language):
+def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log):
     """
     Replace AES-128 or AES-192 references with AES-256 usage, adjusting key sizes accordingly.
     """
@@ -553,7 +588,7 @@ def replace_AES_128_192_with_256(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def replace_Blowfish_Short_Key(weak_cipher, path, lines, language):
+def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log):
     """
     Replace Blowfish short key usage with AES-256 usage.
     """
@@ -604,7 +639,7 @@ def replace_Blowfish_Short_Key(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language):
+def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log):
     """
     Replace ECDH references with RSA-4096 usage. (Very simplified approach)
     """
@@ -661,7 +696,7 @@ def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def replace_RSA_to_4096(weak_cipher, path, lines, language):
+def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log):
     """
     For RSA_512_1024, RSA_2048_3072, or RSA_no_padding => upgrade to RSA-4096 with OAEP or PKCS#1 v1.5
     """
@@ -710,7 +745,7 @@ def replace_RSA_to_4096(weak_cipher, path, lines, language):
     print(f"  [*] Patched file saved to: {patched_file}")
 
 
-def fix_DH_KE(weak_cipher, path, lines, language):
+def fix_DH_KE(weak_cipher, path, lines, language, patch_log):
     """
     Fix DH_KE_Weak_Parameters or DH_KE_Quantum_Threat by adjusting
     the modulus size to 4096, or doubling if user wants to.
@@ -812,7 +847,7 @@ def create_patched_collection(db):
         print("[!] 'patched' collection already exists.")
 
 
-def process_scan(scan):
+def process_scan(scan, patch_log):
     """
     Iterate over the vulnerabilities in the scan
     and call the appropriate fix function for each.
@@ -828,7 +863,7 @@ def process_scan(scan):
         fix_func = cipher_replacement_funcs.get(weak_cipher)
 
         if fix_func:
-            fix_func(weak_cipher, file_path, lines, language)
+            fix_func(weak_cipher, file_path, lines, language, patch_log)
         else:
             print(f"[!] No dedicated fix function for {weak_cipher}. Manual fix required.")
 
@@ -840,12 +875,24 @@ def main():
     scans_collection = db["scans"]
 
     create_patched_collection(db)
+    patched_coll = db["patched"]
+    
+    patch_log = []
 
     # 3) Process the scan with the program argument 
     scan_id = sys.argv[1]
-    process_scan(scans_collection.find_one({"scan_id": scan_id}))
+    process_scan(scans_collection.find_one({"scan_id": scan_id}), patch_log)
     
+    
+    patched_doc = {
+        "scan_id": scan_id,
+        "date": str(datetime.now()),
+        "updates": patch_log
+    }
+    patched_coll.insert_one(patched_doc)
 
+    
+    
     # 4) Close the client
     client.close()
 
