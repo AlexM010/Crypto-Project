@@ -42,7 +42,7 @@ def ensure_output_dir(vulnerability):
         os.makedirs(patch_dir)
     return patch_dir
 
-def set_patch_log(file_path, file_name, transition_info, severity, change, patched_file):
+def set_patch_log(file_path, file_name, transition_info, severity, change, patched_file, lines):
     """
     Set the patch log for each file.
     """
@@ -52,7 +52,8 @@ def set_patch_log(file_path, file_name, transition_info, severity, change, patch
         "transition_info": transition_info,
         "severity": severity,
         "change": change,
-        "patched_file": patched_file
+        "patched_file": patched_file,
+        "lines": lines
     }
     return patch_log
 
@@ -162,7 +163,7 @@ def replace_DES(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 
 def replace_3DES(weak_cipher, path, lines, language, patch_log, severity):
@@ -252,7 +253,7 @@ def replace_3DES(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
     
 
@@ -311,7 +312,7 @@ def replace_RC4(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 
 
@@ -393,7 +394,7 @@ def replace_MD5_SHA1_SHA256_with_SHA512(weak_cipher, path, lines, language, patc
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 
 def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
@@ -435,7 +436,7 @@ def replace_ECB_Mode(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 
 def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
@@ -487,7 +488,7 @@ def fix_CBC_Static_IV(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -568,7 +569,7 @@ def replace_AES_128_192_with_256(weak_cipher, path, lines, language, patch_log, 
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -618,7 +619,7 @@ def replace_Blowfish_Short_Key(weak_cipher, path, lines, language, patch_log, se
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -674,7 +675,7 @@ def replace_ECDH_with_RSA4096(weak_cipher, path, lines, language, patch_log, sev
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -723,7 +724,7 @@ def replace_RSA_to_4096(weak_cipher, path, lines, language, patch_log, severity)
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
 def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
     """
@@ -758,13 +759,37 @@ def fix_DH_KE(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file))
+    patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file, lines))
 
-def fix_manually():
+def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     """
-    Placeholder for manual fixes that require human intervention.
+    Placeholder for manual fixes.
     """
-    print("[!] Manual intervention required for this vulnerability.")
+    transition_str = f"{weak_cipher} » {cipher_replacement.get(weak_cipher)}"
+    
+    if not os.path.isfile(path):
+        patch_log.append(set_patch_log(path, os.path.basename(path), transition_str, severity, f"  [!] File not found: {path}", ""))
+        return
+
+    with open(path, 'r', encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+        
+    if language == "C" or language == "Java":
+        # Add comment on the first line "MANUAL FIX REQUIRED"
+        content = f"// MANUAL FIX REQUIRED\n" + content
+    elif language == "Python":
+        # Add comment on the first line "# MANUAL FIX REQUIRED"
+        content = f"# MANUAL FIX REQUIRED\n" + content
+    else: 
+        print(f"[!] No manual fix available for {weak_cipher} in {language}.")
+        
+    patch_dir = ensure_output_dir("manually")
+    patched_file = os.path.join(patch_dir, f"{os.path.basename(path)}")
+    with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
+        f.write(content)
+    
+    patch_log.append(set_patch_log(path, os.path.basename(path), weak_cipher, severity, f"[!] No automated fix for {weak_cipher}. Manual fix required.", "", lines))
+    
     
 # =============================================================================
 #        OUR MASTER DICTIONARY OF VULNERABILITY → FUNCTION MAPPINGS
@@ -798,10 +823,10 @@ cipher_replacement_funcs = {
     "AES-192": replace_AES_128_192_with_256,
 
     # Blowfish short => AES-256
-    "Blowfish_Short_Key": replace_Blowfish_Short_Key,
+    "Blowfish_Short_Key": fix_manually,
 
     # ECDH => RSA-4096
-    "ECDH": replace_ECDH_with_RSA4096,
+    "ECDH": fix_manually,
 
     # RSA short or no-padding => RSA-4096 with proper padding
     "RSA_512_1024": replace_RSA_to_4096,
@@ -809,8 +834,8 @@ cipher_replacement_funcs = {
     "RSA_no_padding": replace_RSA_to_4096,
 
     # DH_KE fixes
-    "DH_KE_Weak_Parameters": fix_DH_KE,
-    "DH_KE_Quantum_Threat": fix_DH_KE,
+    "DH_KE_Weak_Parameters": fix_manually,
+    "DH_KE_Quantum_Threat": fix_manually,
 }
 
 
