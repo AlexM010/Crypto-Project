@@ -371,24 +371,6 @@ vulnerability_patterns = {
         },
         "severity": "High",
         "explanation": "ECB mode leaks plaintext patterns."
-    },
-    "CBC_Static_IV": {
-        "patterns": {
-            "Python": [
-                r"\bCipher\.new\s*\(.*,\s*AES\.MODE_CBC,\s*iv\s*=\s*['\"].{16}['\"]",
-                r"\bCipher\.new\s*\(.*,\s*DES\.MODE_CBC,\s*iv\s*=\s*['\"].{8}['\"]"
-            ],
-            "C": [
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_aes_\d+_cbc,\s*NULL,\s*\"[a-fA-F0-9]{32}\"",
-                r"\bEVP_EncryptInit_ex\s*\(.*,\s*EVP_des_cbc,\s*NULL,\s*\"[a-fA-F0-9]{16}\""
-            ],
-            "Java": [
-                r"\bCipher\.getInstance\(\"AES/CBC",
-                r"\bCipher\.getInstance\(\"DES/CBC"
-            ]
-        },
-        "severity": "High",
-        "explanation": "Static IVs in CBC mode weaken security and allow chosen-plaintext attacks."
     }
 }
 
@@ -426,7 +408,8 @@ def scan_vulnerabilities(folder, case_name):
     total_files = 0
     total_vulnerable_files = 0
     vulnerabilities = []
-    found_files = set()
+    found_files = set()  # Track files that have been scanned
+    vulnerable_files = set()  # Track files that contain vulnerabilities
 
     for root, _, files in os.walk(folder):
         for file in files:
@@ -447,13 +430,16 @@ def scan_vulnerabilities(folder, case_name):
                 if file_path in found_files:
                     continue
 
+                found_files.add(file_path)  # Mark the file as scanned
+
+                # Track if the file has any vulnerabilities
+                file_has_vulnerabilities = False
+
                 for vuln_name, vuln_details in vulnerability_patterns.items():
                     vuln_findings = scan_for_vulnerability(file_path, {lang: vuln_details["patterns"].get(lang, [])})
                     
                     if vuln_findings:
-                        vulnerable_counts[lang] += 1
-                        total_vulnerable_files += 1
-                        found_files.add(file_path)
+                        file_has_vulnerabilities = True
 
                         merged_vulnerability = {
                             "language": lang,
@@ -473,6 +459,12 @@ def scan_vulnerabilities(folder, case_name):
                         vulnerabilities.append(merged_vulnerability)
                         log_panel.insert(tk.END, f"[INFO] {vuln_name} vulnerability found in {file_path}\n")
                         log_panel.see(tk.END)
+
+                # Update vulnerable_counts and total_vulnerable_files only once per file
+                if file_has_vulnerabilities:
+                    vulnerable_files.add(file_path)
+                    vulnerable_counts[lang] += 1
+                    total_vulnerable_files += 1
 
     scan_document = {
         "scan_id": scan_id,
@@ -496,13 +488,31 @@ def scan_vulnerabilities(folder, case_name):
 
 def create_case():
     """Create a new case and perform a scan."""
-    case_name = simpledialog.askstring("Create Case", "Enter a name for the case:")
-    if case_name:
-        folder = filedialog.askdirectory()
-        if folder:
-            scan_vulnerabilities(folder, case_name)
-    analyze_risks(case_name)  # Added to analyze risks after scanning
+    while True:
+        case_name = simpledialog.askstring("Create Case", "Enter a name for the case:")
+        if not case_name:
+            return  # User canceled
 
+        # Check if a case with the same name already exists
+        existing_case = scans_collection.find_one({"scan_id": case_name})
+        if existing_case:
+            overwrite = tk.messagebox.askyesno(
+                "Case Exists",
+                f"A case with the name '{case_name}' already exists. Do you want to overwrite it?"
+            )
+            if not overwrite:
+                continue  # Prompt the user to enter a different name
+            else:
+                # Delete the existing case to overwrite it
+                scans_collection.delete_one({"scan_id": case_name})
+                break
+        else:
+            break  # Case name is unique
+
+    folder = filedialog.askdirectory()
+    if folder:
+        scan_vulnerabilities(folder, case_name)
+        analyze_risks(case_name)  # Analyze risks after scanning
 def load_case():
     """Load a case and re-scan the folder."""
     case_names = [case["scan_id"] for case in scans_collection.find()]
@@ -527,6 +537,9 @@ def load_case():
             folder = case["directory"]  # Get the folder path from the case
             log_panel.insert(tk.END, f"\nRe-scanning folder: {folder} for case: {case_name}\n")
             log_panel.see(tk.END)
+
+            # Delete the existing case to overwrite it
+            scans_collection.delete_one({"scan_id": case_name})
 
             # Re-scan the folder
             scan_vulnerabilities(folder, case_name)
@@ -568,6 +581,29 @@ def delete_case():
 
     delete_button = tk.Button(delete_window, text="Delete", command=confirm_delete)
     delete_button.pack(pady=10)
+def show_summary_of_cases():
+    """Display a summary of all stored cases."""
+    cases = scans_collection.find()
+    if not cases:
+        log_panel.insert(tk.END, "No cases available to display.\n")
+        return
+
+    log_panel.insert(tk.END, "\n=== Summary of All Cases ===\n")
+    for case in cases:
+        log_panel.insert(tk.END, f"\nCase Name: {case['scan_id']}\n")
+        log_panel.insert(tk.END, f"Date: {case['date']}\n")
+        log_panel.insert(tk.END, f"Directory: {case['directory']}\n")
+        log_panel.insert(tk.END, f"Total files scanned: {sum(case['files_scanned'].values())}\n")
+        log_panel.insert(tk.END, f"Python files: {case['files_scanned']['Python']}\n")
+        log_panel.insert(tk.END, f"C files: {case['files_scanned']['C']}\n")
+        log_panel.insert(tk.END, f"Java files: {case['files_scanned']['Java']}\n")
+        log_panel.insert(tk.END, f"Total vulnerable files: {sum(case['vulnerable_files'].values())}\n")
+        log_panel.insert(tk.END, f"Vulnerable Python files: {case['vulnerable_files']['Python']}\n")
+        log_panel.insert(tk.END, f"Vulnerable C files: {case['vulnerable_files']['C']}\n")
+        log_panel.insert(tk.END, f"Vulnerable Java files: {case['vulnerable_files']['Java']}\n")
+        log_panel.insert(tk.END, f"Total vulnerabilities found: {len(case['vulnerabilities'])}\n")
+        log_panel.insert(tk.END, "-" * 50 + "\n")
+    log_panel.see(tk.END)
 
 def clear_database():
     """Clear the entire database."""
@@ -663,28 +699,67 @@ def analyze_risks(case_name):
     vuln_details_frame = ttk.LabelFrame(right_pane, text="Vulnerability Details", padding=10)
     vuln_details_frame.pack(fill="both", expand=True)
 
+    # Add a dropdown to sort vulnerabilities by severity
+    sort_frame = ttk.Frame(vuln_details_frame)
+    sort_frame.pack(fill="x", pady=5)
+
+    sort_label = ttk.Label(sort_frame, text="Sort by Severity:")
+    sort_label.pack(side="left", padx=5)
+
+    sort_var = tk.StringVar(value="Very High")
+    sort_dropdown = ttk.Combobox(sort_frame, textvariable=sort_var, values=["Very High", "High", "Moderate", "Low", "Very Low"], state="readonly")
+    sort_dropdown.pack(side="left", padx=5)
+
+    def update_vuln_display():
+        """Update the vulnerability display based on the selected severity."""
+        vuln_text.delete(1.0, tk.END)
+        selected_severity = sort_var.get()
+        for vuln in case["vulnerabilities"]:
+            if vuln["severity"] == selected_severity:
+                vuln_text.insert(tk.END, f"File: {vuln['filename']}\n")
+                vuln_text.insert(tk.END, f"Vulnerability: {vuln['vulnerability']}\n")
+                vuln_text.insert(tk.END, f"Severity: {vuln['severity']}\n")
+                vuln_text.insert(tk.END, f"Explanation: {vuln['explanation']}\n")
+                vuln_text.insert(tk.END, f"Recommendation: {get_recommendation(vuln['vulnerability'])}\n")
+                vuln_text.insert(tk.END, f"Lines:\n")
+                for line in vuln["lines"]:
+                    vuln_text.insert(tk.END, f"  Line {line['line_number']}: {line['content']}\n")
+                vuln_text.insert(tk.END, "-" * 50 + "\n")
+
+    sort_dropdown.bind("<<ComboboxSelected>>", lambda e: update_vuln_display())
+
     # Text widget to display vulnerability details
     vuln_text = scrolledtext.ScrolledText(vuln_details_frame, wrap=tk.WORD, font=("Consolas", 10), height=15, width=80)
     vuln_text.pack(fill="both", expand=True)
 
-    # Function to update vulnerability details when a file is selected
-    def on_file_select(event):
-        selected_item = file_tree.selection()
-        if selected_item:
-            file_name = file_tree.item(selected_item, "values")[0]
-            vuln_text.delete(1.0, tk.END)
-            for vuln in case["vulnerabilities"]:
-                if vuln["filename"] == file_name:
-                    vuln_text.insert(tk.END, f"Vulnerability: {vuln['vulnerability']}\n")
-                    vuln_text.insert(tk.END, f"Severity: {vuln['severity']}\n")
-                    vuln_text.insert(tk.END, f"Explanation: {vuln['explanation']}\n")
-                    vuln_text.insert(tk.END, f"Lines:\n")
-                    for line in vuln["lines"]:
-                        vuln_text.insert(tk.END, f"  Line {line['line_number']}: {line['content']}\n")
-                    vuln_text.insert(tk.END, "-" * 50 + "\n")
+    # Function to get recommendations for vulnerabilities
+    def get_recommendation(vuln_name):
+        recommendations = {
+            "DES": "Replace DES with AES-256.",
+            "3DES_1KEY": "Replace 3DES with AES-256.",
+            "3DES_2KEY": "Replace 3DES with AES-256.",
+            "3DES_3KEY": "Replace 3DES with AES-256.",
+            "AES-128": "Upgrade to AES-256 for better security.",
+            "AES-192": "Upgrade to AES-256 for better security.",
+            "Blowfish_Short_Key": "Use a key size of at least 128 bits.",
+            "RC4": "Replace RC4 with a secure stream cipher like ChaCha20.",
+            "RSA_512_1024": "Use RSA with a key size of at least 2048 bits.",
+            "RSA_2048_3072": "Consider using elliptic curve cryptography (ECC) for better performance and security.",
+            "RSA_no_padding": "Use proper padding schemes like OAEP.",
+            "ECDH": "Consider using post-quantum cryptography for long-term security.",
+            "DH_KE_Weak_Parameters": "Use a key size of at least 2048 bits.",
+            "DH_KE_Quantum_Threat": "Consider using post-quantum cryptography.",
+            "MD5": "Replace MD5 with SHA-256 or SHA-3.",
+            "SHA-1": "Replace SHA-1 with SHA-256 or SHA-3.",
+            "SHA-224": "Upgrade to SHA-256 or SHA-3.",
+            "SHA-256": "Consider using SHA-3 for long-term security.",
+            "Whirlpool": "Ensure the implementation is secure and up-to-date.",
+            "ECB_Mode": "Use a secure mode like CBC or GCM.",
+        }
+        return recommendations.get(vuln_name, "No specific recommendation available.")
 
-    # Bind file selection event
-    file_tree.bind("<<TreeviewSelect>>", on_file_select)
+    # Initial display of vulnerabilities
+    update_vuln_display()
 
     # --------------------------
     # Advanced Stats and Visualizations
@@ -705,29 +780,35 @@ def analyze_risks(case_name):
     chart1 = FigureCanvasTkAgg(fig1, master=stats_frame)
     chart1.get_tk_widget().pack(pady=10)
 
-    # Language distribution chart
-    languages = {"Python": 0, "C": 0, "Java": 0}
+    # Most common vulnerabilities
+    vuln_counts = {}
     for vuln in case["vulnerabilities"]:
-        languages[vuln["language"]] += 1
+        vuln_counts[vuln["vulnerability"]] = vuln_counts.get(vuln["vulnerability"], 0) + 1
 
-    fig2, ax2 = plt.subplots(figsize=(5, 3))
-    ax2.bar(languages.keys(), languages.values(), color=["blue", "green", "purple"])
-    ax2.set_title("Language Distribution")
-    ax2.set_ylabel("Count")
+    most_common_vulns = sorted(vuln_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    most_common_text = "\n".join([f"{vuln}: {count} files" for vuln, count in most_common_vulns])
+    most_common_label = ttk.Label(stats_frame, text=f"Most Common Vulnerabilities:\n{most_common_text}", justify="left")
+    most_common_label.pack(pady=10)
 
-    chart2 = FigureCanvasTkAgg(fig2, master=stats_frame)
-    chart2.get_tk_widget().pack(pady=10)
-
-    # Risk score and recommendations
+    # Risk score
     risk_score = sum(
         {"Very High": 5, "High": 4, "Moderate": 3, "Low": 2, "Very Low": 1}[vuln["severity"]]
         for vuln in case["vulnerabilities"]
     )
-    risk_label = ttk.Label(stats_frame, text=f"Risk Score: {risk_score}", font=("Arial", 12, "bold"))
+    risk_label = ttk.Label(stats_frame, text=f"Risk Score: {risk_score}/100", font=("Arial", 12, "bold"))
     risk_label.pack(pady=10)
 
-    recommendations = ttk.Label(stats_frame, text="Recommendations:\n- Upgrade to AES-256.\n- Use SHA-3 instead of SHA-1.", justify="left")
-    recommendations.pack(pady=10)
+    # Risk level explanation
+    risk_explanation = """
+    Risk Levels:
+    - Very High: Immediate action required. Vulnerabilities in this category are critically insecure and should be fixed immediately.
+    - High: Should be addressed soon. Vulnerabilities in this category pose significant risks and should be prioritized.
+    - Moderate: Consider addressing. Vulnerabilities in this category have moderate risks and should be fixed when possible.
+    - Low: Low priority. Vulnerabilities in this category have minimal risks and can be addressed later.
+    - Very Low: Informational only. Vulnerabilities in this category are not critical but should be monitored.
+    """
+    explanation_label = ttk.Label(stats_frame, text=risk_explanation, justify="left")
+    explanation_label.pack(pady=10)
 
 root = tk.Tk()
 root.title("Cryptographic Inventory Tool")
@@ -761,7 +842,9 @@ load_case_button.pack(side="left", padx=5)
 delete_case_button = tk.Button(case_frame, text="Delete Case", font=("Arial", 12, "bold"),
                                 bg="#FF5733", fg="white", command= delete_case)
 delete_case_button.pack(side="left", padx=5)
-
+summary_button = tk.Button(case_frame, text="Show Summary Of Cases", font=("Arial", 12, "bold"),
+                           bg="#6C757D", fg="white", command=show_summary_of_cases)
+summary_button.pack(side="left", padx=5)
 # Database Management Panel
 db_frame = tk.LabelFrame(main_tab, text="Database Management", font=("Arial", 12, "bold"), padx=10, pady=10)
 db_frame.pack(fill="x", padx=10, pady=5)
