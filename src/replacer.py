@@ -789,7 +789,7 @@ def fix_manually(weak_cipher, path, lines, language, patch_log, severity):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
     
-    patch_log.append(set_patch_log(path, os.path.basename(path), weak_cipher, severity, f"[!] No automated fix for {weak_cipher}. Manual fix required.", "", lines, "MANUAL"))
+    patch_log.append(set_patch_log(path, os.path.basename(path), weak_cipher, severity, f"{weak_cipher} should be replaced by {cipher_replacement.get(weak_cipher)}. Manual fix required.", "", lines, "MANUAL"))
     
     
 # =============================================================================
