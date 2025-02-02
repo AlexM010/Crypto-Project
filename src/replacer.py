@@ -251,7 +251,7 @@ def replace_3DES(weak_cipher, path, lines, language, patch_log):
     with open(patched_file, 'w', encoding="utf-8", errors="ignore") as f:
         f.write(content)
 
-    set_patch_log(path, os.path.basename(path), transition_str, f"[+] Patching {weak_cipher} » {cipher_replacement(weak_cipher)} in {language}", patched_file)
+    set_patch_log(path, os.path.basename(path), transition_str, f"[+] Patching {weak_cipher} » {cipher_replacement.get(weak_cipher)} in {language}", patched_file)
 
     
 
